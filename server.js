@@ -5,7 +5,7 @@ const Anthropic = require("@anthropic-ai/sdk");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-10-starter-v3";
+const SERVER_VERSION = "2026-08-10-starter-v4";
 
 app.use(cors());
 app.use(express.json({ limit: "35mb" }));
@@ -44,10 +44,6 @@ function parseClaudeJson(ai) {
   }
 }
 
-// ------------------------------------------------------------
-// 오늘 뭐라고 보내지? 전용 API
-// 일반 답장 분석과 완전히 분리되어 있으므로 message가 비어 있어도 정상 동작합니다.
-// ------------------------------------------------------------
 app.post("/api/starter", async (req, res) => {
   try {
     const {
@@ -133,9 +129,6 @@ ${recentMemory || "없음"}
   }
 });
 
-// ------------------------------------------------------------
-// 기존 답장/상세 분석 API
-// ------------------------------------------------------------
 app.post("/api/love-analysis", async (req, res) => {
   try {
     const {
