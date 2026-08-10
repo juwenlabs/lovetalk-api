@@ -19,7 +19,7 @@ app.get("/", (req, res) => {
 
 app.post("/api/love-analysis", async (req, res) => {
   try {
-    const { relation, nickname, message, tone, image, mode = "quick" } = req.body;
+    const { relation, nickname, message, tone, image, mode = "quick", starterGoal } = req.body;
 
     if ((!message || typeof message !== "string" || !message.trim()) && !image?.data) {
       return res.status(400).json({
@@ -97,7 +97,37 @@ ${commonPrompt}
 }
 `;
 
-    const prompt = isDetail ? detailPrompt : quickPrompt;
+    const starterPrompt = `
+${commonPrompt}
+
+[분석 모드]
+오늘 뭐라고 보내지?: 상대가 먼저 메시지를 보낸 상황이 아니라, 사용자가 먼저 가볍게 연락을 시작하고 싶은 상황입니다.
+
+[오늘의 목표]
+${starterGoal || "자연스럽게 대화 다시 이어가기"}
+
+다음 원칙을 지키세요.
+- 부담스럽거나 과하게 의미심장한 첫 연락은 피하세요.
+- 답장을 강요하는 표현, 감정 압박, 밀당 유도는 피하세요.
+- 실제 카카오톡/DM에서 바로 보낼 수 있는 짧고 자연스러운 문장으로 제안하세요.
+- 사용자의 관계와 목표에 맞춰 3가지 서로 다른 시작 메시지를 제안하세요.
+
+아래 JSON 형식으로만 답하세요. 코드블록은 사용하지 마세요.
+{
+  "meaning": "오늘 먼저 연락할 때의 핵심 방향을 1~2문장으로 설명",
+  "emotion": "현재 관계에서 너무 부담스럽지 않게 접근하기 위한 분위기를 1~2문장으로 설명",
+  "strategy": "언제, 어떤 톤으로 시작하면 좋은지 1~3문장으로 설명",
+  "caution": "피하면 좋은 시작 방식이나 표현을 1~2문장으로 설명",
+  "replies": [
+    {"label":"가장 자연스러운 시작","text":"실제로 바로 보낼 수 있는 짧은 첫 메시지"},
+    {"label":"조금 더 다정하게","text":"실제로 바로 보낼 수 있는 짧은 첫 메시지"},
+    {"label":"조금 더 센스 있게","text":"실제로 바로 보낼 수 있는 짧은 첫 메시지"}
+  ],
+  "advice": "오늘 먼저 연락할 때 기억하면 좋은 한 줄 조언"
+}
+`;
+
+    const prompt = mode === "starter" ? starterPrompt : (isDetail ? detailPrompt : quickPrompt);
 
     const content = [];
 
@@ -119,7 +149,7 @@ ${commonPrompt}
 
     const ai = await anthropic.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: isDetail ? 1150 : 520,
+      max_tokens: mode === "starter" ? 620 : (isDetail ? 1150 : 520),
       messages: [{ role: "user", content }],
     });
 
