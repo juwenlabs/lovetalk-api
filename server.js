@@ -5,7 +5,7 @@ const Anthropic = require("@anthropic-ai/sdk");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-11-json-retry-v6";
+const SERVER_VERSION = "2026-08-11-speed-v7";
 
 app.use(cors());
 app.use(express.json({ limit: "35mb" }));
@@ -249,8 +249,8 @@ ${commonPrompt}
 
 JSON만 출력하세요.
 {
-  "meaning":"핵심 의미 1~2문장",
-  "emotion":"감정/태도 가능성 1~2문장",
+  "meaning":"핵심 의미 1문장",
+  "emotion":"감정/태도 가능성 1문장",
   "caution":"피하면 좋은 행동 1문장",
   "replies":[
     {"label":"가장 자연스러운 답장","text":"짧은 답장","reason":"이유 1문장"},
@@ -258,7 +258,7 @@ JSON만 출력하세요.
     {"label":"조금 더 여유 있는 답장","text":"짧은 답장","reason":"이유 1문장"}
   ],
   "advice":"한 줄 조언",
-  "nextAction":"지금 연락할지 기다릴지, 기다린다면 어느 정도 기다릴지, 연락 충동이 강할 때 무엇을 하면 좋을지까지 포함한 구체적인 다음 행동 2~4문장"
+  "nextAction":"지금 연락할지 기다릴지와 바로 할 행동을 1~2문장으로 구체적으로 안내"
 }
 `;
 
@@ -285,7 +285,7 @@ JSON만 출력하세요.
     const content = [];
     const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
     const imageList = Array.isArray(images) && images.length
-      ? images.slice(0, 5)
+      ? images.slice(0, isDetail ? 5 : 3)
       : (image?.data ? [image] : []);
 
     for (const img of imageList) {
@@ -310,9 +310,9 @@ JSON만 출력하세요.
     });
 
     const parsed = await createJsonWithRetry({
-      model: "claude-sonnet-5",
-      maxTokens: isDetail ? 1700 : 950,
-      retryMaxTokens: isDetail ? 1900 : 1100,
+      model: isDetail ? "claude-sonnet-5" : "claude-haiku-4-5",
+      maxTokens: isDetail ? 1700 : 700,
+      retryMaxTokens: isDetail ? 1900 : 850,
       content,
     });
     res.json({ ...parsed, serverVersion: SERVER_VERSION });
