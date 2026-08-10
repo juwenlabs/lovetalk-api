@@ -133,7 +133,37 @@ ${starterGoal || "자연스럽게 대화 다시 이어가기"}
 }
 `;
 
-    const prompt = mode === "starter" ? starterPrompt : (isDetail ? detailPrompt : quickPrompt);
+    const starterFastPrompt = `
+${commonPrompt}
+
+[분석 모드]
+빠른 먼저 연락 추천: 사용자가 최근 상황을 입력하지 않았습니다.
+분석이나 해석은 만들지 말고, 현재 관계와 오늘의 목표, 원하는 말투만 참고해서
+바로 보낼 수 있는 첫 메시지 3개만 아주 빠르게 제안하세요.
+
+[오늘의 목표]
+${starterGoal || "자연스럽게 대화 다시 이어가기"}
+
+다음 원칙을 지키세요.
+- 부담스럽거나 과하게 의미심장하지 않게 작성하세요.
+- 실제 카카오톡/DM에서 바로 보낼 수 있는 짧은 한국어로 작성하세요.
+- 서로 느낌이 다른 3개 문장을 제안하세요.
+- 분석, 감정 해석, 주의점, 조언 문단은 생성하지 마세요.
+
+아래 JSON 형식으로만 답하세요. 코드블록은 사용하지 마세요.
+{
+  "replies": [
+    {"label":"가장 자연스럽게","text":"바로 보낼 수 있는 짧은 첫 메시지","reason":"왜 부담 없이 시작하기 좋은지 1문장"},
+    {"label":"조금 더 다정하게","text":"바로 보낼 수 있는 짧은 첫 메시지","reason":"왜 부담 없이 시작하기 좋은지 1문장"},
+    {"label":"조금 더 센스 있게","text":"바로 보낼 수 있는 짧은 첫 메시지","reason":"왜 부담 없이 시작하기 좋은지 1문장"}
+  ]
+}
+`;
+
+    const prompt =
+      mode === "starter_fast"
+        ? starterFastPrompt
+        : (mode === "starter" ? starterPrompt : (isDetail ? detailPrompt : quickPrompt));
 
     const content = [];
 
@@ -159,7 +189,9 @@ ${starterGoal || "자연스럽게 대화 다시 이어가기"}
 
     const ai = await anthropic.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: mode === "starter" ? 620 : (isDetail ? 1150 : 520),
+      max_tokens:
+        mode === "starter_fast" ? 280 :
+        (mode === "starter" ? 620 : (isDetail ? 1150 : 520)),
       messages: [{ role: "user", content }],
     });
 
