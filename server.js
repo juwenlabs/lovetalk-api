@@ -5,7 +5,7 @@ const Anthropic = require("@anthropic-ai/sdk");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-11-stream-v8";
+const SERVER_VERSION = "2026-08-11-sse-v9";
 
 app.use(cors());
 app.use(express.json({ limit: "35mb" }));
@@ -159,7 +159,10 @@ ${recentMemory || "없음"}
       throw new Error("AI가 추천 문장 3개를 반환하지 않았습니다.");
     }
 
-    res.json({ ...parsed, serverVersion: SERVER_VERSION });
+    res.json({
+      ...parsed,
+      serverVersion: SERVER_VERSION,
+    });
   } catch (error) {
     console.error("선톡 API 오류:", error);
     res.status(500).json({
@@ -198,6 +201,7 @@ app.post("/api/love-analysis", async (req, res) => {
     }
 
     const isDetail = mode === "detail";
+
     const commonPrompt = `
 당신은 연애 상황을 차분하고 현실적으로 분석하는 AI 코치입니다.
 
@@ -279,14 +283,24 @@ JSON만 출력하세요.
 
     for (const img of imageList) {
       if (!img?.data) continue;
-      const mediaType = allowedTypes.includes(img.mediaType) ? img.mediaType : "image/jpeg";
+      const mediaType = allowedTypes.includes(img.mediaType)
+        ? img.mediaType
+        : "image/jpeg";
+
       content.push({
         type: "image",
-        source: { type: "base64", media_type: mediaType, data: img.data },
+        source: {
+          type: "base64",
+          media_type: mediaType,
+          data: img.data,
+        },
       });
     }
 
-    content.push({ type: "text", text: isDetail ? detailPrompt : quickPrompt });
+    content.push({
+      type: "text",
+      text: isDetail ? detailPrompt : quickPrompt,
+    });
 
     const parsed = await createJsonWithRetry({
       model: isDetail ? "claude-sonnet-5" : "claude-haiku-4-5",
@@ -307,14 +321,62 @@ JSON만 출력하세요.
 
 function setStreamHeaders(res) {
   res.status(200);
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
+  if (res.socket && typeof res.socket.setNoDelay === "function") res.socket.setNoDelay(true);
   if (typeof res.flushHeaders === "function") res.flushHeaders();
+  res.write(": connected " + " ".repeat(2048) + "\n\n");
 }
 
-async function streamClaudeText({ res, model, maxTokens, content }) {
+function sendSse(res, event, data) {
+  if (res.writableEnded) return;
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+  res.write(":" + " ".repeat(2048) + "\n\n");
+  if (typeof res.flush === "function") res.flush();
+}
+
+function parseReplyObject(raw, fallbackLabel) {
+  const text = String(raw || "").trim();
+  try {
+    const first = text.indexOf("{");
+    const last = text.lastIndexOf("}");
+    if (first >= 0 && last > first) return JSON.parse(text.slice(first, last + 1));
+  } catch (_) {}
+  return { label: fallbackLabel || "추천", text, reason: "" };
+}
+
+async function streamClaudeSections({ res, model, maxTokens, content, sectionOrder }) {
+  let fullText = "";
+  const emitted = new Set();
+
+  function tryEmit() {
+    for (let i = 0; i < sectionOrder.length; i++) {
+      const name = sectionOrder[i];
+      if (emitted.has(name)) continue;
+      const marker = `[[${name}]]`;
+      const nextName = sectionOrder[i + 1] || "done";
+      const nextMarker = `[[${nextName}]]`;
+      const start = fullText.indexOf(marker);
+      const end = fullText.indexOf(nextMarker);
+      if (start < 0 || end < 0 || end <= start) continue;
+
+      const raw = fullText.slice(start + marker.length, end).trim();
+      if (!raw) continue;
+
+      let value = raw;
+      if (name.startsWith("reply")) {
+        const n = Number(name.replace("reply", "")) || 1;
+        const fallbackLabels = ["가장 자연스러운 답장", "조금 더 다정한 답장", "조금 더 여유 있는 답장"];
+        value = parseReplyObject(raw, fallbackLabels[n - 1] || "추천");
+      }
+      sendSse(res, "section", { name, value });
+      emitted.add(name);
+    }
+  }
+
   const stream = anthropic.messages.stream({
     model,
     max_tokens: maxTokens,
@@ -322,14 +384,17 @@ async function streamClaudeText({ res, model, maxTokens, content }) {
   });
 
   stream.on("text", (text) => {
-    if (!res.writableEnded) res.write(text);
+    fullText += text;
+    tryEmit();
   });
 
   await stream.finalMessage();
+  tryEmit();
+  sendSse(res, "done", { serverVersion: SERVER_VERSION });
   if (!res.writableEnded) res.end();
 }
 
-function buildAnalysisContent(reqBody) {
+function buildAnalysisContent(reqBody, streamMode = true) {
   const {
     relation,
     nickname,
@@ -449,11 +514,14 @@ app.post("/api/love-analysis-stream", async (req, res) => {
   try {
     const { content, isDetail } = buildAnalysisContent(req.body || {});
     setStreamHeaders(res);
-    await streamClaudeText({
+    await streamClaudeSections({
       res,
       model: isDetail ? "claude-sonnet-5" : "claude-haiku-4-5",
       maxTokens: isDetail ? 1700 : 700,
       content,
+      sectionOrder: isDetail
+        ? ["meaning", "emotion", "flow", "strategy", "caution", "reply1", "reply2", "reply3", "advice", "nextAction"]
+        : ["meaning", "emotion", "caution", "reply1", "reply2", "reply3", "advice", "nextAction"],
     });
   } catch (error) {
     console.error("스트리밍 분석 API 오류:", error);
@@ -465,7 +533,7 @@ app.post("/api/love-analysis-stream", async (req, res) => {
       });
     }
     if (!res.writableEnded) {
-      res.write(`\n[[streamError]]\n${error?.message || "스트리밍 오류"}\n`);
+      sendSse(res, "error", { message: error?.message || "스트리밍 오류" });
       res.end();
     }
   }
@@ -511,11 +579,12 @@ app.post("/api/starter-stream", async (req, res) => {
 `;
 
     setStreamHeaders(res);
-    await streamClaudeText({
+    await streamClaudeSections({
       res,
       model: "claude-haiku-4-5",
       maxTokens: 320,
       content: prompt,
+      sectionOrder: ["reply1", "reply2", "reply3"],
     });
   } catch (error) {
     console.error("선톡 스트리밍 API 오류:", error);
@@ -527,7 +596,7 @@ app.post("/api/starter-stream", async (req, res) => {
       });
     }
     if (!res.writableEnded) {
-      res.write(`\n[[streamError]]\n${error?.message || "스트리밍 오류"}\n`);
+      sendSse(res, "error", { message: error?.message || "스트리밍 오류" });
       res.end();
     }
   }
