@@ -7,7 +7,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "35mb" }));
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -19,9 +19,9 @@ app.get("/", (req, res) => {
 
 app.post("/api/love-analysis", async (req, res) => {
   try {
-    const { relation, nickname, message, tone, image, mode = "quick", starterGoal } = req.body;
+    const { relation, nickname, message, tone, image, images, mode = "quick", starterGoal, profile, recentMemory } = req.body;
 
-    if ((!message || typeof message !== "string" || !message.trim()) && !image?.data) {
+    if ((!message || typeof message !== "string" || !message.trim()) && !image?.data && !(Array.isArray(images) && images.length)) {
       return res.status(400).json({
         error: "메시지를 입력하거나 대화 스크린샷을 올려주세요."
       });
@@ -53,6 +53,12 @@ ${message?.trim() || "없음 - 첨부된 대화 스크린샷을 중심으로 분
 
 [원하는 답장 분위기]
 ${tone || "자연스럽게"}
+
+[상대 프로필 / AI 기억]
+${profile ? JSON.stringify(profile) : "저장된 프로필 없음"}
+
+[최근 이 상대와의 분석 흐름]
+${recentMemory || "최근 기록 없음"}
 `;
 
     const quickPrompt = `
@@ -67,9 +73,9 @@ ${commonPrompt}
   "emotion": "상대의 감정 또는 태도를 가능성 중심으로 1~2문장으로 설명",
   "caution": "지금 피하면 좋은 행동을 1문장으로 설명",
   "replies": [
-    {"label":"가장 자연스러운 답장","text":"1문장의 실제 보낼 수 있는 짧은 답장"},
-    {"label":"조금 더 다정한 답장","text":"1문장의 실제 보낼 수 있는 짧은 답장"},
-    {"label":"조금 더 여유 있는 답장","text":"1문장의 실제 보낼 수 있는 짧은 답장"}
+    {"label":"가장 자연스러운 답장","text":"1문장의 실제 보낼 수 있는 짧은 답장","reason":"왜 이 답장이 좋은지 1문장"},
+    {"label":"조금 더 다정한 답장","text":"1문장의 실제 보낼 수 있는 짧은 답장","reason":"왜 이 답장이 좋은지 1문장"},
+    {"label":"조금 더 여유 있는 답장","text":"1문장의 실제 보낼 수 있는 짧은 답장","reason":"왜 이 답장이 좋은지 1문장"}
   ],
   "advice": "현실적인 한 줄 조언"
 }
@@ -89,9 +95,9 @@ ${commonPrompt}
   "strategy": "지금 답장의 목표와 타이밍, 어떤 톤이 좋은지 2~4문장으로 설명",
   "caution": "지금 피하면 좋은 행동이나 표현을 2~3문장으로 설명",
   "replies": [
-    {"label":"가장 자연스러운 답장","text":"1~2문장의 실제 보낼 수 있는 답장"},
-    {"label":"조금 더 다정한 답장","text":"1~2문장의 실제 보낼 수 있는 답장"},
-    {"label":"조금 더 여유 있는 답장","text":"1~2문장의 실제 보낼 수 있는 답장"}
+    {"label":"가장 자연스러운 답장","text":"1~2문장의 실제 보낼 수 있는 답장","reason":"왜 이 답장이 좋은지 1~2문장"},
+    {"label":"조금 더 다정한 답장","text":"1~2문장의 실제 보낼 수 있는 답장","reason":"왜 이 답장이 좋은지 1~2문장"},
+    {"label":"조금 더 여유 있는 답장","text":"1~2문장의 실제 보낼 수 있는 답장","reason":"왜 이 답장이 좋은지 1~2문장"}
   ],
   "advice": "지금 상황에서 가장 현실적인 한 줄 조언"
 }
@@ -119,9 +125,9 @@ ${starterGoal || "자연스럽게 대화 다시 이어가기"}
   "strategy": "언제, 어떤 톤으로 시작하면 좋은지 1~3문장으로 설명",
   "caution": "피하면 좋은 시작 방식이나 표현을 1~2문장으로 설명",
   "replies": [
-    {"label":"가장 자연스러운 시작","text":"실제로 바로 보낼 수 있는 짧은 첫 메시지"},
-    {"label":"조금 더 다정하게","text":"실제로 바로 보낼 수 있는 짧은 첫 메시지"},
-    {"label":"조금 더 센스 있게","text":"실제로 바로 보낼 수 있는 짧은 첫 메시지"}
+    {"label":"가장 자연스러운 시작","text":"실제로 바로 보낼 수 있는 짧은 첫 메시지","reason":"왜 이 시작이 자연스러운지 1문장"},
+    {"label":"조금 더 다정하게","text":"실제로 바로 보낼 수 있는 짧은 첫 메시지","reason":"왜 이 시작이 자연스러운지 1문장"},
+    {"label":"조금 더 센스 있게","text":"실제로 바로 보낼 수 있는 짧은 첫 메시지","reason":"왜 이 시작이 자연스러운지 1문장"}
   ],
   "advice": "오늘 먼저 연락할 때 기억하면 좋은 한 줄 조언"
 }
@@ -131,16 +137,20 @@ ${starterGoal || "자연스럽게 대화 다시 이어가기"}
 
     const content = [];
 
-    if (image?.data) {
-      const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-      const mediaType = allowedTypes.includes(image.mediaType) ? image.mediaType : "image/jpeg";
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    const imageList = Array.isArray(images) && images.length
+      ? images.slice(0,5)
+      : (image?.data ? [image] : []);
 
+    for (const img of imageList) {
+      if (!img?.data) continue;
+      const mediaType = allowedTypes.includes(img.mediaType) ? img.mediaType : "image/jpeg";
       content.push({
         type: "image",
         source: {
           type: "base64",
           media_type: mediaType,
-          data: image.data,
+          data: img.data,
         },
       });
     }
