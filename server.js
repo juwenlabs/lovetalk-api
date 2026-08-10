@@ -19,7 +19,7 @@ app.get("/", (req, res) => {
 
 app.post("/api/love-analysis", async (req, res) => {
   try {
-    const { relation, nickname, message, tone, image } = req.body;
+    const { relation, nickname, message, tone, image, mode = "quick" } = req.body;
 
     if ((!message || typeof message !== "string" || !message.trim()) && !image?.data) {
       return res.status(400).json({
@@ -27,7 +27,9 @@ app.post("/api/love-analysis", async (req, res) => {
       });
     }
 
-    const prompt = `
+    const isDetail = mode === "detail";
+
+    const commonPrompt = `
 당신은 연애 상황을 차분하고 현실적으로 분석하는 AI 코치입니다.
 
 중요 원칙:
@@ -51,21 +53,51 @@ ${message?.trim() || "없음 - 첨부된 대화 스크린샷을 중심으로 분
 
 [원하는 답장 분위기]
 ${tone || "자연스럽게"}
+`;
+
+    const quickPrompt = `
+${commonPrompt}
+
+[분석 모드]
+간편 추천: 속도와 실용성을 우선합니다. 불필요한 설명은 줄이고 바로 사용할 수 있게 간결하게 답하세요.
 
 아래 JSON 형식으로만 답하세요. 코드블록은 사용하지 마세요.
-
 {
-  "meaning": "대화의 핵심 의미와 흐름을 1~3문장으로 간결하게 설명",
-  "emotion": "상대에게서 읽힐 수 있는 감정 또는 태도를 가능성 중심으로 1~3문장으로 설명",
-  "caution": "지금 피하면 좋은 행동이나 표현을 1~2문장으로 설명",
+  "meaning": "대화의 핵심 의미를 1~2문장으로 아주 간결하게 설명",
+  "emotion": "상대의 감정 또는 태도를 가능성 중심으로 1~2문장으로 설명",
+  "caution": "지금 피하면 좋은 행동을 1문장으로 설명",
   "replies": [
-    {"label":"가장 자연스러운 답장","text":"1~2문장의 실제 보낼 수 있는 짧은 답장"},
-    {"label":"조금 더 다정한 답장","text":"1~2문장의 실제 보낼 수 있는 짧은 답장"},
-    {"label":"조금 더 여유 있는 답장","text":"1~2문장의 실제 보낼 수 있는 짧은 답장"}
+    {"label":"가장 자연스러운 답장","text":"1문장의 실제 보낼 수 있는 짧은 답장"},
+    {"label":"조금 더 다정한 답장","text":"1문장의 실제 보낼 수 있는 짧은 답장"},
+    {"label":"조금 더 여유 있는 답장","text":"1문장의 실제 보낼 수 있는 짧은 답장"}
+  ],
+  "advice": "현실적인 한 줄 조언"
+}
+`;
+
+    const detailPrompt = `
+${commonPrompt}
+
+[분석 모드]
+상세 추천: 대화의 앞뒤 흐름과 상대의 태도 변화를 더 깊게 분석하세요. 단, 추측은 가능성으로 표현하고 과도하게 길게 쓰지 마세요.
+
+아래 JSON 형식으로만 답하세요. 코드블록은 사용하지 마세요.
+{
+  "meaning": "대화의 핵심 의미와 숨은 맥락을 2~4문장으로 설명",
+  "emotion": "상대에게서 읽힐 수 있는 감정·거리감·관심도의 가능성을 2~4문장으로 설명",
+  "flow": "앞뒤 대화 흐름과 상대의 태도 변화, 질문 빈도나 말투 변화를 2~4문장으로 설명",
+  "strategy": "지금 답장의 목표와 타이밍, 어떤 톤이 좋은지 2~4문장으로 설명",
+  "caution": "지금 피하면 좋은 행동이나 표현을 2~3문장으로 설명",
+  "replies": [
+    {"label":"가장 자연스러운 답장","text":"1~2문장의 실제 보낼 수 있는 답장"},
+    {"label":"조금 더 다정한 답장","text":"1~2문장의 실제 보낼 수 있는 답장"},
+    {"label":"조금 더 여유 있는 답장","text":"1~2문장의 실제 보낼 수 있는 답장"}
   ],
   "advice": "지금 상황에서 가장 현실적인 한 줄 조언"
 }
 `;
+
+    const prompt = isDetail ? detailPrompt : quickPrompt;
 
     const content = [];
 
@@ -87,7 +119,7 @@ ${tone || "자연스럽게"}
 
     const ai = await anthropic.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 850,
+      max_tokens: isDetail ? 1150 : 520,
       messages: [{ role: "user", content }],
     });
 
