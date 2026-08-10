@@ -5,7 +5,7 @@ const Anthropic = require("@anthropic-ai/sdk");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-10-guidance-v5";
+const SERVER_VERSION = "2026-08-11-json-retry-v6";
 
 app.use(cors());
 app.use(express.json({ limit: "35mb" }));
@@ -26,24 +26,72 @@ app.get("/api/version", (req, res) => {
   res.json({ ok: true, version: SERVER_VERSION });
 });
 
-function parseClaudeJson(ai) {
-  const text = ai.content
+function getClaudeText(ai) {
+  return ai.content
     .filter(item => item.type === "text")
     .map(item => item.text)
     .join("\n")
     .trim();
+}
+
+function parseClaudeJson(ai) {
+  const text = getClaudeText(ai);
+  const cleaned = text
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "")
+    .trim();
+
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  const candidate =
+    firstBrace >= 0 && lastBrace > firstBrace
+      ? cleaned.slice(firstBrace, lastBrace + 1)
+      : cleaned;
+
+  return JSON.parse(candidate);
+}
+
+async function createJsonWithRetry({ model, maxTokens, content, retryMaxTokens }) {
+  let ai = await anthropic.messages.create({
+    model,
+    max_tokens: maxTokens,
+    messages: [{ role: "user", content }],
+  });
 
   try {
-    return JSON.parse(text);
-  } catch {
-    const cleaned = text
-      .replace(/^```json\s*/i, "")
-      .replace(/```$/i, "")
-      .trim();
-    return JSON.parse(cleaned);
+    return parseClaudeJson(ai);
+  } catch (firstError) {
+    console.warn("JSON 파싱 실패 - 1회 재생성:", firstError.message);
+
+    const retryContent = Array.isArray(content)
+      ? [
+          ...content,
+          {
+            type: "text",
+            text:
+              "\n중요: 방금 응답 형식이 깨졌습니다. 이번에는 반드시 완전하고 유효한 JSON 하나만 출력하세요. " +
+              "모든 문자열의 큰따옴표를 닫고, 마지막 중괄호까지 반드시 출력하세요. 코드블록과 설명은 금지합니다.",
+          },
+        ]
+      : String(content) +
+        "\n\n중요: 이번에는 반드시 완전하고 유효한 JSON 하나만 출력하세요. " +
+        "모든 문자열의 큰따옴표를 닫고 마지막 중괄호까지 반드시 출력하세요. 코드블록과 설명은 금지합니다.";
+
+    ai = await anthropic.messages.create({
+      model,
+      max_tokens: retryMaxTokens || maxTokens,
+      messages: [{ role: "user", content: retryContent }],
+    });
+
+    return parseClaudeJson(ai);
   }
 }
 
+// ------------------------------------------------------------
+// 오늘 뭐라고 보내지? 전용 API
+// 일반 답장 분석과 완전히 분리되어 있으므로 message가 비어 있어도 정상 동작합니다.
+// ------------------------------------------------------------
 app.post("/api/starter", async (req, res) => {
   try {
     const {
@@ -104,19 +152,21 @@ ${recentMemory || "없음"}
 }
 `;
 
-    const ai = await anthropic.messages.create({
+    const parsed = await createJsonWithRetry({
       model: "claude-haiku-4-5",
-      max_tokens: 180,
-      messages: [{ role: "user", content: prompt }],
+      maxTokens: 240,
+      retryMaxTokens: 320,
+      content: prompt,
     });
-
-    const parsed = parseClaudeJson(ai);
 
     if (!Array.isArray(parsed.replies) || parsed.replies.length < 3) {
       throw new Error("AI가 추천 문장 3개를 반환하지 않았습니다.");
     }
 
-    res.json({ ...parsed, serverVersion: SERVER_VERSION });
+    res.json({
+      ...parsed,
+      serverVersion: SERVER_VERSION,
+    });
   } catch (error) {
     console.error("선톡 API 오류:", error);
     res.status(500).json({
@@ -127,6 +177,9 @@ ${recentMemory || "없음"}
   }
 });
 
+// ------------------------------------------------------------
+// 기존 답장/상세 분석 API
+// ------------------------------------------------------------
 app.post("/api/love-analysis", async (req, res) => {
   try {
     const {
@@ -237,22 +290,31 @@ JSON만 출력하세요.
 
     for (const img of imageList) {
       if (!img?.data) continue;
-      const mediaType = allowedTypes.includes(img.mediaType) ? img.mediaType : "image/jpeg";
+      const mediaType = allowedTypes.includes(img.mediaType)
+        ? img.mediaType
+        : "image/jpeg";
+
       content.push({
         type: "image",
-        source: { type: "base64", media_type: mediaType, data: img.data },
+        source: {
+          type: "base64",
+          media_type: mediaType,
+          data: img.data,
+        },
       });
     }
 
-    content.push({ type: "text", text: isDetail ? detailPrompt : quickPrompt });
-
-    const ai = await anthropic.messages.create({
-      model: "claude-sonnet-5",
-      max_tokens: isDetail ? 1250 : 650,
-      messages: [{ role: "user", content }],
+    content.push({
+      type: "text",
+      text: isDetail ? detailPrompt : quickPrompt,
     });
 
-    const parsed = parseClaudeJson(ai);
+    const parsed = await createJsonWithRetry({
+      model: "claude-sonnet-5",
+      maxTokens: isDetail ? 1700 : 950,
+      retryMaxTokens: isDetail ? 1900 : 1100,
+      content,
+    });
     res.json({ ...parsed, serverVersion: SERVER_VERSION });
   } catch (error) {
     console.error("Claude API 오류:", error);
