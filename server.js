@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-12-sse-v12-situations-notices";
+const SERVER_VERSION = "2026-08-19-sse-v13-advanced-starter";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -139,18 +139,35 @@ async function createJsonWithRetry({model,maxTokens,content,retryMaxTokens}){
 
 function situationRules(selectedSituation="") {
   const s=String(selectedSituation||"").trim();
-  const base=`\n[상황별 답장 안전 규칙]\n- 실제 사람이 바로 보낼 수 있는 자연스러운 카톡 문장만 작성하세요.\n- 지나치게 감성적·드라마틱·오글거리는 표현, 비꼼, 밀당, 죄책감 유도, 상대 시험하기는 금지합니다.\n- 사용자가 제공하지 않은 사건·감정·사실을 지어내지 마세요.\n`;
+  const base=`
+[상황별 답장 안전 규칙]
+- 실제 사람이 바로 보낼 수 있는 자연스러운 카톡 문장만 작성하세요.
+- 지나치게 감성적·드라마틱·오글거리는 표현, 비꼼, 밀당, 죄책감 유도, 상대 시험하기는 금지합니다.
+- 사용자가 제공하지 않은 사건·감정·사실을 지어내지 마세요.
+`;
   const map={
-    "싸웠어":`- 싸움 자체에 감사하는 표현(예: '싸워줘서 고마워', '화내줘서 고마워', '상처 줘서 고마워')은 절대 금지합니다.\n- 갈등 직후에는 감정 진정 → 상황 인정 → 필요한 경우 짧은 사과 → 차분하게 다시 대화할 여지 순서로 접근하세요.\n- 잘못이 명확하지 않으면 무조건적인 사과나 자기비하를 만들지 마세요.`,
-    "사과하고 싶어":`- 사과는 구체적이고 짧게 하되 과도한 자기비하, 매달림, 용서 강요를 금지합니다.\n- '미안해' 뒤에 변명부터 붙이지 말고 상대가 답할 여지를 남기세요.`,
-    "내가 너무 많이 연락한 것 같아":`- 연속 연락을 더 권하지 마세요.\n- 필요하면 짧은 한 문장만 보내고 이후 시간을 두도록 안내하세요.\n- '내가 너무 부담스럽지?', '싫어진 거야?' 같은 불안 확인 질문은 금지합니다.`,
-    "다시 연락해도 될지 모르겠어":`- 부담 없는 한 번의 연락만 제안하고 답장 압박을 주지 마세요.\n- 관계를 바로 정의하거나 감정을 확인받으려는 문장은 피하세요.`,
-    "읽씹 당했어":`- 읽씹을 추궁하거나 '왜 읽고 답 안 해?' 같은 공격적 표현은 금지합니다.\n- 같은 내용을 반복해서 보내지 말고 상황에 따라 기다리는 선택도 제안하세요.`,
-    "답장이 짧아졌어":`- 답장 길이만으로 마음이 식었다고 단정하지 마세요.\n- '나한테 마음 없어?' 같은 확인 요구보다 가볍고 짧은 답장을 우선하세요.`,
-    "답장이 늦어졌어":`- 답장 속도만으로 관심 하락을 단정하지 마세요.\n- 재촉·추궁·연속 메시지를 권하지 마세요.`,
-    "갑자기 차가워졌어":`- 원인을 단정하거나 따져 묻지 마세요.\n- 낮은 압력의 짧은 메시지 또는 잠시 기다리는 선택을 제안하세요.`,
-    "연락을 기다리는 중이야":`- 불안해서 반복 연락하는 행동을 권하지 마세요.\n- 마지막 연락 시점에 따라 기다릴 시간을 구체적으로 제안하세요.`,
-    "썸인지 헷갈려":`- 상대 마음을 확정하지 마세요.\n- 고백을 급하게 권하기보다 작은 약속·가벼운 호감 표현처럼 확인 가능한 다음 행동을 제안하세요.`,
+    "싸웠어":`- 싸움 자체에 감사하는 표현(예: '싸워줘서 고마워', '화내줘서 고마워', '상처 줘서 고마워')은 절대 금지합니다.
+- 갈등 직후에는 감정 진정 → 상황 인정 → 필요한 경우 짧은 사과 → 차분하게 다시 대화할 여지 순서로 접근하세요.
+- 잘못이 명확하지 않으면 무조건적인 사과나 자기비하를 만들지 마세요.`,
+    "사과하고 싶어":`- 사과는 구체적이고 짧게 하되 과도한 자기비하, 매달림, 용서 강요를 금지합니다.
+- '미안해' 뒤에 변명부터 붙이지 말고 상대가 답할 여지를 남기세요.`,
+    "내가 너무 많이 연락한 것 같아":`- 연속 연락을 더 권하지 마세요.
+- 필요하면 짧은 한 문장만 보내고 이후 시간을 두도록 안내하세요.
+- '내가 너무 부담스럽지?', '싫어진 거야?' 같은 불안 확인 질문은 금지합니다.`,
+    "다시 연락해도 될지 모르겠어":`- 부담 없는 한 번의 연락만 제안하고 답장 압박을 주지 마세요.
+- 관계를 바로 정의하거나 감정을 확인받으려는 문장은 피하세요.`,
+    "읽씹 당했어":`- 읽씹을 추궁하거나 '왜 읽고 답 안 해?' 같은 공격적 표현은 금지합니다.
+- 같은 내용을 반복해서 보내지 말고 상황에 따라 기다리는 선택도 제안하세요.`,
+    "답장이 짧아졌어":`- 답장 길이만으로 마음이 식었다고 단정하지 마세요.
+- '나한테 마음 없어?' 같은 확인 요구보다 가볍고 짧은 답장을 우선하세요.`,
+    "답장이 늦어졌어":`- 답장 속도만으로 관심 하락을 단정하지 마세요.
+- 재촉·추궁·연속 메시지를 권하지 마세요.`,
+    "갑자기 차가워졌어":`- 원인을 단정하거나 따져 묻지 마세요.
+- 낮은 압력의 짧은 메시지 또는 잠시 기다리는 선택을 제안하세요.`,
+    "연락을 기다리는 중이야":`- 불안해서 반복 연락하는 행동을 권하지 마세요.
+- 마지막 연락 시점에 따라 기다릴 시간을 구체적으로 제안하세요.`,
+    "썸인지 헷갈려":`- 상대 마음을 확정하지 마세요.
+- 고백을 급하게 권하기보다 작은 약속·가벼운 호감 표현처럼 확인 가능한 다음 행동을 제안하세요.`,
     "약속 잡고 싶어":`- 날짜/시간을 너무 압박하지 말고 구체적인 제안 + 상대가 편하게 조정할 여지를 주세요.`
   };
   return base+(map[s]?"\n"+map[s]:"");
@@ -173,18 +190,60 @@ function sanitizeReplyObject(obj,situation,label){
 
 function buildCommonPrompt({relation,nickname,message,tone,profile,recentMemory,selectedSituation,hasImages,hasSingleImage}){
   const hasText=typeof message==="string"&&message.trim(); const hasSituation=typeof selectedSituation==="string"&&selectedSituation.trim();
-  return `\n당신은 연애 상황을 차분하고 현실적으로 분석하는 AI 코치입니다.\n\n중요 원칙:\n- 그 사람의 속마음을 사실처럼 단정하지 말고 가능성으로 표현하세요.\n- 확인되는 사실과 추정/가능성을 구분하세요.\n- 실제 카카오톡/문자/DM에서 자연스럽게 쓸 수 있는 짧은 한국어 답장을 작성하세요.\n- 스크린샷이 있으면 대화 순서와 앞뒤 맥락을 반영하세요.\n- 답장뿐 아니라 지금 연락할지 기다릴지 같은 다음 행동도 현실적으로 안내하세요.\n- 상대를 조종하거나 불안을 키우는 밀당을 권하지 마세요.\n${situationRules(selectedSituation)}\n\n[현재 관계] ${relation||"미입력"}\n[그 사람 이름/별명] ${nickname||"미입력"}\n[사용자가 선택한 현재 상황] ${hasSituation?selectedSituation.trim():"선택 없음"}\n[그 사람이 실제로 보낸 대화/사용자 설명] ${hasText?message.trim():((hasImages||hasSingleImage)?"첨부된 스크린샷을 분석":"직접 입력 없음 - 선택한 상황을 중심으로 판단")}\n[원하는 답장 분위기] ${tone||"자연스럽게"}\n[그 사람 프로필] ${profile?JSON.stringify(profile):"없음"}\n[최근 기억] ${recentMemory||"없음"}\n`;
+  return `
+당신은 연애 상황을 차분하고 현실적으로 분석하는 AI 코치입니다.
+
+중요 원칙:
+- 그 사람의 속마음을 사실처럼 단정하지 말고 가능성으로 표현하세요.
+- 확인되는 사실과 추정/가능성을 구분하세요.
+- 실제 카카오톡/문자/DM에서 자연스럽게 쓸 수 있는 짧은 한국어 답장을 작성하세요.
+- 스크린샷이 있으면 대화 순서와 앞뒤 맥락을 반영하세요.
+- 답장뿐 아니라 지금 연락할지 기다릴지 같은 다음 행동도 현실적으로 안내하세요.
+- 상대를 조종하거나 불안을 키우는 밀당을 권하지 마세요.
+${situationRules(selectedSituation)}
+
+[현재 관계] ${relation||"미입력"}
+[그 사람 이름/별명] ${nickname||"미입력"}
+[사용자가 선택한 현재 상황] ${hasSituation?selectedSituation.trim():"선택 없음"}
+[그 사람이 실제로 보낸 대화/사용자 설명] ${hasText?message.trim():((hasImages||hasSingleImage)?"첨부된 스크린샷을 분석":"직접 입력 없음 - 선택한 상황을 중심으로 판단")}
+[원하는 답장 분위기] ${tone||"자연스럽게"}
+[그 사람 프로필] ${profile?JSON.stringify(profile):"없음"}
+[최근 기억] ${recentMemory||"없음"}
+`;
 }
 
 app.post("/api/starter", async (req,res)=>{
   try{
-    const {relation,nickname,message,tone,starterGoal,profile,recentMemory,selectedSituation}=req.body||{};
+    const {relation,nickname,message,tone,starterGoal,profile,recentMemory,selectedSituation,advanced=false}=req.body||{};
     const context=typeof message==="string"?message.trim():"";
-    const prompt=`\n사용자가 지금 그 사람에게 먼저 보낼 카카오톡/DM 첫 메시지 3개를 만들어주세요. 이 작업은 답장 추천이 아닙니다.\n[그 사람] ${nickname||"새로운/임의 상대"}\n[현재 관계] ${relation||"애매한 관계"}\n[오늘의 목표] ${starterGoal||"부담 없이 먼저 연락하기"}\n[원하는 말투] ${tone||"자연스럽게"}\n[최근 상황 - 과거 배경정보] ${context||"입력 없음"}\n[선택한 상황] ${selectedSituation||"없음"}\n[저장된 프로필] ${profile?JSON.stringify(profile):"없음"}\n[최근 관계 기억] ${recentMemory||"없음"}\n${situationRules(selectedSituation)}\n반드시 지킬 규칙:\n- 사용자가 지금 먼저 보내는 말만 작성하세요.\n- 최근 상황은 상대가 방금 보낸 메시지가 아닙니다.\n- '응','웅','나도','그래'처럼 답장처럼 시작하지 마세요.\n- 정보가 부족해도 질문하지 말고 바로 3개를 작성하세요.\n- 실제 카톡에서 바로 보낼 수 있는 짧고 자연스러운 문장만 작성하세요.\nJSON만 출력하세요.\n{"replies":[{"label":"자연스럽게","text":"먼저 보낼 메시지"},{"label":"다정하게","text":"먼저 보낼 메시지"},{"label":"센스 있게","text":"먼저 보낼 메시지"}]}\n`;
-    const parsed=await createJsonWithRetry({model:"claude-haiku-4-5",maxTokens:300,retryMaxTokens:380,content:prompt});
+    const prompt=`
+사용자가 지금 그 사람에게 먼저 보낼 카카오톡/DM 첫 메시지 3개를 만들어주세요. 이 작업은 답장 추천이 아닙니다.
+[그 사람] ${nickname||"새로운/임의 상대"}
+[현재 관계] ${relation||"애매한 관계"}
+[오늘의 목표] ${starterGoal||"부담 없이 먼저 연락하기"}
+[원하는 말투] ${tone||"자연스럽게"}
+[최근 상황 - 과거 배경정보] ${context||"입력 없음"}
+[선택한 상황] ${selectedSituation||"없음"}
+[저장된 프로필] ${profile?JSON.stringify(profile):"없음"}
+[최근 관계 기억] ${recentMemory||"없음"}
+${situationRules(selectedSituation)}
+반드시 지킬 규칙:
+- 사용자가 지금 먼저 보내는 말만 작성하세요.
+- 최근 상황은 상대가 방금 보낸 메시지가 아닙니다.
+- '응','웅','나도','그래'처럼 답장처럼 시작하지 마세요.
+- 정보가 부족해도 질문하지 말고 바로 3개를 작성하세요.
+- 실제 카톡에서 바로 보낼 수 있는 짧고 자연스러운 문장만 작성하세요.
+${advanced ? `- 이것은 PRO 고급 먼저 보내기 추천입니다.
+- 저장된 프로필, 최근 관계 기억, 선택한 상황, 오늘의 목표를 함께 고려해 일반 추천보다 더 정교하게 설계하세요.
+- 세 문장은 각각 '가장 자연스러운 접근', '관계 진전형', '부담 최소화형'처럼 목적이 겹치지 않게 만드세요.
+- 각 추천의 reason에는 왜 지금 이 문장이 적합한지 1~2문장으로 구체적으로 설명하세요.` : ""}
+JSON만 출력하세요.
+{"replies":[{"label":"자연스럽게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"다정하게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"센스 있게","text":"먼저 보낼 메시지","reason":"이유 1문장"}]}
+`;
+    const parsed=await createJsonWithRetry({model:"claude-haiku-4-5",maxTokens:advanced?420:300,retryMaxTokens:advanced?520:380,content:prompt});
     if(!Array.isArray(parsed.replies)||parsed.replies.length<3) throw new Error("AI가 추천 문장 3개를 반환하지 않았습니다.");
     parsed.replies=parsed.replies.slice(0,3).map((x,i)=>sanitizeReplyObject(x,selectedSituation,["자연스럽게","다정하게","센스 있게"][i]));
-    res.json({...parsed,serverVersion:SERVER_VERSION});
+    res.json({...parsed,advanced:!!advanced,serverVersion:SERVER_VERSION});
   }catch(error){console.error("선톡 API 오류:",error);res.status(500).json({error:"선톡 추천을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});}
 });
 
@@ -193,7 +252,51 @@ function buildAnalysisContent(reqBody){
   const hasText=typeof message==="string"&&message.trim(); const hasSingleImage=!!image?.data; const hasImages=Array.isArray(images)&&images.some(img=>img?.data); const hasSituation=typeof selectedSituation==="string"&&selectedSituation.trim(); const isDetail=mode==="detail";
   if(!hasText&&!hasSingleImage&&!hasImages&&!hasSituation){const err=new Error("메시지나 스크린샷을 올리거나 상황을 선택해주세요.");err.statusCode=400;throw err;}
   const commonPrompt=buildCommonPrompt({relation,nickname,message,tone,profile,recentMemory,selectedSituation,hasImages,hasSingleImage});
-  const protocol=isDetail?`\n${commonPrompt}\n아래 표식을 정확히 같은 순서로 출력하세요. 코드블록/설명/머리말 금지. reply는 한 줄 유효 JSON 객체.\n[[meaning]]\n핵심 의미와 맥락 2~4문장\n[[emotion]]\n감정·거리감·관심도의 가능성 2~4문장\n[[flow]]\n대화 흐름과 태도 변화 2~4문장\n[[strategy]]\n답장 목표와 톤 2~4문장\n[[caution]]\n피하면 좋은 행동 2~3문장\n[[reply1]]\n{"label":"가장 자연스러운 답장","text":"답장","reason":"이유"}\n[[reply2]]\n{"label":"조금 더 다정한 답장","text":"답장","reason":"이유"}\n[[reply3]]\n{"label":"조금 더 여유 있는 답장","text":"답장","reason":"이유"}\n[[advice]]\n한 줄 조언\n[[nextAction]]\n현재 타이밍 판단 + 다음 연락 시점 + 그때까지 행동 방법 3~5문장\n[[done]]\n`:`\n${commonPrompt}\n아래 표식을 정확히 같은 순서로 출력하세요. 코드블록/설명/머리말 금지. reply는 한 줄 유효 JSON 객체.\n[[meaning]]\n핵심 의미 1문장\n[[emotion]]\n감정/태도 가능성 1문장\n[[caution]]\n피하면 좋은 행동 1문장\n[[reply1]]\n{"label":"가장 자연스러운 답장","text":"짧은 답장","reason":"이유 1문장"}\n[[reply2]]\n{"label":"조금 더 다정한 답장","text":"짧은 답장","reason":"이유 1문장"}\n[[reply3]]\n{"label":"조금 더 여유 있는 답장","text":"짧은 답장","reason":"이유 1문장"}\n[[advice]]\n한 줄 조언\n[[nextAction]]\n지금 연락할지 기다릴지와 바로 할 행동을 1~2문장으로 구체적으로 안내\n[[done]]\n`;
+  const protocol=isDetail?`
+${commonPrompt}
+아래 표식을 정확히 같은 순서로 출력하세요. 코드블록/설명/머리말 금지. reply는 한 줄 유효 JSON 객체.
+[[meaning]]
+핵심 의미와 맥락 2~4문장
+[[emotion]]
+감정·거리감·관심도의 가능성 2~4문장
+[[flow]]
+대화 흐름과 태도 변화 2~4문장
+[[strategy]]
+답장 목표와 톤 2~4문장
+[[caution]]
+피하면 좋은 행동 2~3문장
+[[reply1]]
+{"label":"가장 자연스러운 답장","text":"답장","reason":"이유"}
+[[reply2]]
+{"label":"조금 더 다정한 답장","text":"답장","reason":"이유"}
+[[reply3]]
+{"label":"조금 더 여유 있는 답장","text":"답장","reason":"이유"}
+[[advice]]
+한 줄 조언
+[[nextAction]]
+현재 타이밍 판단 + 다음 연락 시점 + 그때까지 행동 방법 3~5문장
+[[done]]
+`:`
+${commonPrompt}
+아래 표식을 정확히 같은 순서로 출력하세요. 코드블록/설명/머리말 금지. reply는 한 줄 유효 JSON 객체.
+[[meaning]]
+핵심 의미 1문장
+[[emotion]]
+감정/태도 가능성 1문장
+[[caution]]
+피하면 좋은 행동 1문장
+[[reply1]]
+{"label":"가장 자연스러운 답장","text":"짧은 답장","reason":"이유 1문장"}
+[[reply2]]
+{"label":"조금 더 다정한 답장","text":"짧은 답장","reason":"이유 1문장"}
+[[reply3]]
+{"label":"조금 더 여유 있는 답장","text":"짧은 답장","reason":"이유 1문장"}
+[[advice]]
+한 줄 조언
+[[nextAction]]
+지금 연락할지 기다릴지와 바로 할 행동을 1~2문장으로 구체적으로 안내
+[[done]]
+`;
   const content=[]; const allowed=["image/jpeg","image/png","image/webp"]; const imageList=Array.isArray(images)&&images.length?images.slice(0,15):(image?.data?[image]:[]);
   for(const img of imageList){if(!img?.data)continue;const mediaType=allowed.includes(img.mediaType)?img.mediaType:"image/jpeg";content.push({type:"image",source:{type:"base64",media_type:mediaType,data:img.data}});}
   content.push({type:"text",text:protocol}); return {content,isDetail,selectedSituation};
@@ -219,6 +322,30 @@ async function streamClaudeSections({res,model,maxTokens,content,sectionOrder,se
 
 app.post("/api/love-analysis-stream",async(req,res)=>{try{const {content,isDetail,selectedSituation}=buildAnalysisContent(req.body||{});setStreamHeaders(res);await streamClaudeSections({res,model:isDetail?"claude-sonnet-5":"claude-haiku-4-5",maxTokens:isDetail?1700:750,content,selectedSituation,sectionOrder:isDetail?["meaning","emotion","flow","strategy","caution","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","reply2","reply3","advice","nextAction"]});}catch(error){console.error("스트리밍 분석 API 오류:",error);if(!res.headersSent)return res.status(error?.statusCode||500).json({error:"스트리밍 분석을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});if(!res.writableEnded){sendSse(res,"error",{message:error?.message||"스트리밍 오류"});res.end();}}});
 
-app.post("/api/starter-stream",async(req,res)=>{try{const {relation,nickname,message,tone,starterGoal,profile,recentMemory,selectedSituation}=req.body||{};const context=typeof message==="string"?message.trim():"";const prompt=`\n사용자가 지금 그 사람에게 먼저 보낼 카카오톡/DM 첫 메시지 3개를 만드세요. 답장 추천이 아니라 선톡입니다.\n최근 상황은 과거 배경정보이며 그 사람이 방금 보낸 메시지가 아닙니다. '응','웅','나도','그래'처럼 답장처럼 시작하지 마세요. 정보가 부족해도 추가 질문 없이 바로 추천하세요.\n[그 사람] ${nickname||"새로운/임의 상대"}\n[현재 관계] ${relation||"애매한 관계"}\n[오늘의 목표] ${starterGoal||"부담 없이 먼저 연락하기"}\n[원하는 말투] ${tone||"자연스럽게"}\n[최근 상황] ${context||"입력 없음"}\n[선택한 상황] ${selectedSituation||"없음"}\n[저장된 프로필] ${profile?JSON.stringify(profile):"없음"}\n[최근 관계 기억] ${recentMemory||"없음"}\n${situationRules(selectedSituation)}\n아래 표식을 정확히 같은 순서로 출력하세요. 각 reply는 유효한 한 줄 JSON 객체.\n[[reply1]]\n{"label":"자연스럽게","text":"먼저 보낼 메시지","reason":"이유 1문장"}\n[[reply2]]\n{"label":"다정하게","text":"먼저 보낼 메시지","reason":"이유 1문장"}\n[[reply3]]\n{"label":"센스 있게","text":"먼저 보낼 메시지","reason":"이유 1문장"}\n[[done]]\n`;setStreamHeaders(res);await streamClaudeSections({res,model:"claude-haiku-4-5",maxTokens:560,content:prompt,selectedSituation,sectionOrder:["reply1","reply2","reply3"]});}catch(error){console.error("선톡 스트리밍 API 오류:",error);if(!res.headersSent)return res.status(500).json({error:"선톡 스트리밍 추천을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});if(!res.writableEnded){sendSse(res,"error",{message:error?.message||"스트리밍 오류"});res.end();}}});
+app.post("/api/starter-stream",async(req,res)=>{try{const {relation,nickname,message,tone,starterGoal,profile,recentMemory,selectedSituation,advanced=false}=req.body||{};const context=typeof message==="string"?message.trim():"";const prompt=`
+사용자가 지금 그 사람에게 먼저 보낼 카카오톡/DM 첫 메시지 3개를 만드세요. 답장 추천이 아니라 선톡입니다.
+최근 상황은 과거 배경정보이며 그 사람이 방금 보낸 메시지가 아닙니다. '응','웅','나도','그래'처럼 답장처럼 시작하지 마세요. 정보가 부족해도 추가 질문 없이 바로 추천하세요.
+[그 사람] ${nickname||"새로운/임의 상대"}
+[현재 관계] ${relation||"애매한 관계"}
+[오늘의 목표] ${starterGoal||"부담 없이 먼저 연락하기"}
+[원하는 말투] ${tone||"자연스럽게"}
+[최근 상황] ${context||"입력 없음"}
+[선택한 상황] ${selectedSituation||"없음"}
+[저장된 프로필] ${profile?JSON.stringify(profile):"없음"}
+[최근 관계 기억] ${recentMemory||"없음"}
+${situationRules(selectedSituation)}
+${advanced ? `이것은 PRO 고급 먼저 보내기 추천입니다.
+저장된 프로필, 최근 관계 기억, 선택한 상황, 오늘의 목표를 함께 고려해 일반 추천보다 더 정교하게 설계하세요.
+세 문장은 각각 가장 자연스러운 접근, 관계 진전형, 부담 최소화형처럼 목적이 겹치지 않게 만드세요.
+각 reason에는 왜 지금 이 문장이 적합한지 구체적으로 설명하세요.` : ""}
+아래 표식을 정확히 같은 순서로 출력하세요. 각 reply는 유효한 한 줄 JSON 객체.
+[[reply1]]
+{"label":"자연스럽게","text":"먼저 보낼 메시지","reason":"이유 1문장"}
+[[reply2]]
+{"label":"다정하게","text":"먼저 보낼 메시지","reason":"이유 1문장"}
+[[reply3]]
+{"label":"센스 있게","text":"먼저 보낼 메시지","reason":"이유 1문장"}
+[[done]]
+`;setStreamHeaders(res);await streamClaudeSections({res,model:"claude-haiku-4-5",maxTokens:advanced?720:560,content:prompt,selectedSituation,sectionOrder:["reply1","reply2","reply3"]});}catch(error){console.error("선톡 스트리밍 API 오류:",error);if(!res.headersSent)return res.status(500).json({error:"선톡 스트리밍 추천을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});if(!res.writableEnded){sendSse(res,"error",{message:error?.message||"스트리밍 오류"});res.end();}}});
 
 app.listen(PORT,()=>console.log(`썸톡 AI 서버 실행 중: ${PORT} / ${SERVER_VERSION}`));
