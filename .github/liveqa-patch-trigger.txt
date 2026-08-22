@@ -1,1 +1,1 @@
-Trigger Potentia v24 exact source-case wording patch.
+Trigger Potentia v25 no-reply rule separation patch.
