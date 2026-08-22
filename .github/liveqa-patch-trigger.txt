@@ -1,1 +1,1 @@
-Trigger Potentia v25 no-reply rule separation patch.
+Trigger Potentia v26 final no-reply behavior patch.
