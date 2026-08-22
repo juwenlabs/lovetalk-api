@@ -1,1 +1,1 @@
-Trigger Potentia v19 final grounding and parser cleanup.
+Trigger Potentia v20 manual-aligned timing and grounding patch.
