@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v24-source-case";
+const SERVER_VERSION = "2026-08-23-potentia-v25-no-reply-separated";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -360,7 +360,7 @@ ${commonPrompt}
 1) 오늘 좀 피곤하셨나 봐요. 하루는 어땠어요?
 2) 그렇군요. 오늘은 어떻게 보내셨어요?
 3) 누워 계시는군요. 오늘 하루는 어떠셨어요?
-이 경우 반말 시작+존댓말 끝, 문법이 어색한 질문, 입력에 없는 시간대·활동·장소·미래 약속을 만들지 마세요.
+이 경우 meaning은 ‘상대가 누워 있다고 짧게 답했다’는 확인 사실과 정보 한계만 설명하고 휴식 중이라고 확정하지 마세요. 반말 시작+존댓말 끝, 문법이 어색한 질문, 입력에 없는 시간대·활동·장소·미래 약속을 만들지 마세요.
 [[meaning]]
 확인된 사실과 정보 한계를 함께 반영한 핵심 의미 1문장
 [[emotion]]
@@ -376,7 +376,7 @@ ${commonPrompt}
 [[advice]]
 한 줄 조언
 [[nextAction]]
-지금 연락할지 기다릴지와 바로 할 행동을 1~2문장으로 구체적으로 안내. 초기 대화라면 반드시 조건부로 다음 원칙을 포함하세요: “이 답장 뒤 새로 무응답이 생기면 비긴급 상황에서는 약 3일 정도 기다린 뒤 한 번만 담백하게 확인하고, 그 확인에도 다시 무응답이면 멈춘다.” 2~3시간·하루만으로 관계 종료를 권하지 말 것
+지금 연락할지 기다릴지와 바로 할 행동을 1~2문장으로 구체적으로 안내. 초기 대화에서 상대가 다시 짧게 답하면 ‘3일 기다림’을 적용하지 말고 반복되는 참여 패턴을 더 본다. 오직 답장을 보낸 뒤 새로 무응답이 생긴 경우에만 비긴급 상황에서 약 3일 정도 기다린 뒤 한 번 담백하게 확인하고, 그 확인에도 다시 무응답이면 멈춘다. 2~3시간·하루만으로 관계 종료를 권하지 말 것
 [[done]]
 `;
   const content=[]; const allowed=["image/jpeg","image/png","image/webp"]; const imageList=Array.isArray(images)&&images.length?images.slice(0,15):(image?.data?[image]:[]);
