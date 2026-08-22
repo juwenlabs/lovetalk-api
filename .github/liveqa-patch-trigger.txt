@@ -1,1 +1,1 @@
-Trigger Potentia v18 grounded and complete-output corrections.
+Trigger Potentia v19 final grounding and parser cleanup.
