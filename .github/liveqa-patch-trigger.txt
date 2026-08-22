@@ -1,1 +1,1 @@
-Temporary trigger for one-shot server patch QA.
+Temporary trigger for one-shot server patch QA. Retry after syntax fix.
