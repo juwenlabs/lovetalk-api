@@ -1,1 +1,1 @@
-Trigger Potentia v17 style-consistency corrections.
+Trigger Potentia v18 grounded and complete-output corrections.
