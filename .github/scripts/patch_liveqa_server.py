@@ -60,7 +60,7 @@ replacement='''app.post("/api/love-analysis", async (req,res)=>{
     let ai=await anthropic.messages.create({model,max_tokens:isDetail?1700:750,messages:[{role:"user",content}]});
     let parsed=parseAnalysisSectionsText(getClaudeText(ai),isDetail,selectedSituation);
     if(!validAnalysisResult(parsed)){
-      const retryContent=Array.isArray(content)?[...content,{type:"text",text:"\\n중요: 위에서 지정한 [[meaning]], [[emotion]], reply 표식을 정확히 지켜 완전한 결과를 다시 출력하세요. 코드블록과 머리말은 금지합니다."}]:content;
+      const retryContent=Array.isArray(content)?[...content,{type:"text",text:`중요: 위에서 지정한 [[meaning]], [[emotion]], reply 표식을 정확히 지켜 완전한 결과를 다시 출력하세요. 코드블록과 머리말은 금지합니다.`}]:content;
       ai=await anthropic.messages.create({model,max_tokens:isDetail?1900:900,messages:[{role:"user",content:retryContent}]});
       parsed=parseAnalysisSectionsText(getClaudeText(ai),isDetail,selectedSituation);
     }
