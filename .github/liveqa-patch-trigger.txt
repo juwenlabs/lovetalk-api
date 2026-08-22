@@ -1,1 +1,1 @@
-Trigger Potentia v22 quick-mode timing enforcement patch.
+Trigger Potentia v23 tone-consistency and future-context guard patch.
