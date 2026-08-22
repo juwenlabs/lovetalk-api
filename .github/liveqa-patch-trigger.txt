@@ -1,1 +1,1 @@
-Trigger Potentia v15 system-prompt and starter-stream guard patch.
+Trigger Potentia v16 live-QA quality corrections.
