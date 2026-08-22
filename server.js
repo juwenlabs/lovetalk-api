@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v21-source-aligned";
+const SERVER_VERSION = "2026-08-23-potentia-v22-timing-enforced";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -355,6 +355,7 @@ ${commonPrompt}
 `:`
 ${commonPrompt}
 아래 표식을 정확히 같은 순서로 출력하세요. 코드블록/설명/머리말 금지. reply는 한 줄 유효 JSON 객체.
+특히 입력에 상대의 “그냥 누워 있어요” 같은 한 번의 짧은 답장이 있다면, reply 후보 중 하나는 포텐티아 매뉴얼 예시처럼 가벼운 가능성 표현 + 개방형 질문 하나를 한 답장 안에 담으세요. 입력에 없는 시간대·구체적 활동·장소는 만들지 마세요.
 [[meaning]]
 확인된 사실과 정보 한계를 함께 반영한 핵심 의미 1문장
 [[emotion]]
@@ -370,7 +371,7 @@ ${commonPrompt}
 [[advice]]
 한 줄 조언
 [[nextAction]]
-지금 연락할지 기다릴지와 바로 할 행동을 1~2문장으로 구체적으로 안내. 답장을 하나 보낸 뒤 초기 비긴급 무응답이 생기면 약 3일 정도 기다린 뒤 한 번만 담백하게 확인하고, 그 확인에도 다시 무응답이면 종료한다. 2~3시간·하루만으로 관계 종료를 권하지 말 것
+지금 연락할지 기다릴지와 바로 할 행동을 1~2문장으로 구체적으로 안내. 초기 대화라면 반드시 조건부로 다음 원칙을 포함하세요: “이 답장 뒤 새로 무응답이 생기면 비긴급 상황에서는 약 3일 정도 기다린 뒤 한 번만 담백하게 확인하고, 그 확인에도 다시 무응답이면 멈춘다.” 2~3시간·하루만으로 관계 종료를 권하지 말 것
 [[done]]
 `;
   const content=[]; const allowed=["image/jpeg","image/png","image/webp"]; const imageList=Array.isArray(images)&&images.length?images.slice(0,15):(image?.data?[image]:[]);
