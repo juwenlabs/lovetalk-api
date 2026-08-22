@@ -1,1 +1,1 @@
-Trigger Potentia v26 final no-reply behavior patch.
+Trigger Potentia v27 unified non-stream and SSE analysis policy guards.
