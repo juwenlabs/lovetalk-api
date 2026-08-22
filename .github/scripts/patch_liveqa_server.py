@@ -12,8 +12,8 @@ new='''- 상대가 단 한 번 짧게 답한 경우 '대화할 여유가 있다'
 assert old in s, 'single-short-answer anchor missing'
 s=s.replace(old,new,1)
 
-old='''- 판단 확신도가 필요하면 반드시 '높음', '중간', '낮음' 중 하나만 선택하고 '중간~높음' 같은 범위를 만들지 않는다.'''
-new='''- 판단 확신도가 필요하면 반드시 '높음', '중간', '낮음' 중 하나만 선택한다. ‘중간 정도’, ‘중간~높음’, ‘낮음~중간’처럼 변형하거나 범위로 표현하지 않는다. 확신도를 문장에 쓸 때는 가능하면 ‘판단 확신도: 중간’처럼 정확히 한 단계로 표기한다.'''
+old="판단 확신도가 필요하면 반드시 '높음', '중간', '낮음' 중 하나만 선택하고 '중간~높음' 같은 범위를 만들지 않는다."
+new="판단 확신도가 필요하면 반드시 '높음', '중간', '낮음' 중 하나만 선택한다. ‘중간 정도’, ‘중간~높음’, ‘낮음~중간’처럼 변형하거나 범위로 표현하지 않는다. 확신도를 문장에 쓸 때는 가능하면 ‘판단 확신도: 중간’처럼 정확히 한 단계로 표기한다."
 assert old in s, 'confidence anchor missing'
 s=s.replace(old,new,1)
 
@@ -28,7 +28,6 @@ new='''- 초기 비긴급 무응답은 기본적으로 최소 약 3일 정도 �
 assert old in s, 'no-reply timing anchor missing'
 s=s.replace(old,new,1)
 
-# Quick mode must repeat the manual's timing rule instead of inventing short deadlines.
 old='''[[nextAction]]\n지금 연락할지 기다릴지와 바로 할 행동을 1~2문장으로 구체적으로 안내'''
 new='''[[nextAction]]\n지금 연락할지 기다릴지와 바로 할 행동을 1~2문장으로 구체적으로 안내. 초기 비긴급 무응답이라면 약 3일 기준과 한 번의 후속 연락 원칙을 지키고, 2~3시간·하루만으로 관계 종료를 권하지 말 것'''
 assert old in s, 'quick nextAction anchor missing'
