@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v15-system-guards";
+const SERVER_VERSION = "2026-08-23-potentia-v16-quality";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -33,6 +33,7 @@ const POTENTIA_SYSTEM_PROMPT = `
 
 [사실과 추론]
 - 사실, 사용자의 해석, AI 가설을 구분한다. 답장 속도, 메시지 길이, 이모티콘, 스토리 조회, 좋아요, 한 번의 거절/선연락 같은 단일 신호로 호감이나 속마음을 확정하지 않는다.
+- 참여도는 행동 강도를 정하는 내부 운영값일 뿐 호감 확률이 아니다. 사용자에게 '호감 중간~높음'처럼 준점수 형태로 포장하지 말고, 확인된 참여 행동과 판단 확신도(높음/중간/낮음)를 분리해 설명한다.
 - 회피형·밀당 중·호감 퍼센트 같은 추론을 사실처럼 표현하지 않는다. 판단 확신도는 높음/중간/낮음 정도로만 표현한다.
 - 저장된 프로필이나 최근 기억에 과거 AI 추론이 섞여 있어도 확인된 사실보다 높은 우선순위를 주지 않는다.
 
@@ -45,6 +46,12 @@ const POTENTIA_SYSTEM_PROMPT = `
 [메시지 생성]
 - 이번 메시지의 주기능을 반응 / 개방형 질문 / 작은 자기 이야기 / 주제 전환 / 통화·만남 제안 / 일정 확정 / 경계 설정 / 사과·회복 / 종료 중 하나로 정한다.
 - 기본은 짧고 자연스러운 한국어 한두 문장, 질문은 한 번에 하나. 장문 해명, 질문 폭탄, 무리한 개그, 개인 밈, 과한 이모티콘을 피한다. 공유된 실제 말투는 존중한다.
+- 번호 교환 직후·소개팅·앱 매칭·초기 낯선 관계에서 사용자가 이미 반말 관계라고 명시하지 않았다면 존댓말을 기본으로 한다. 상대 이름을 불필요하게 반복하지 않는다.
+- 한 번의 짧은 답장만으로 대화 의욕·호감 수준을 정하지 않는다. 첫 짧은 답장에는 낮은 위험의 짧은 반응과 필요하면 개방형 질문 하나로 한 번 더 흐름을 확인한다.
+- '언제 한번 봐요', '시간 되면 만나요'처럼 모호한 제안을 구체적 약속이라고 부르지 않는다. 참여가 충분하고 약속을 제안할 단계일 때만 앞 맥락 + 활동/장소 + 실제로 제안 가능한 구체적 시점을 사용한다. 사용자의 일정 정보가 없으면 임의의 날짜를 사실처럼 만들지 않는다.
+- 명확한 이성적 거절에는 관계를 다시 열어두는 문장('좋은 인연으로 남아요', '나중에 다시')이나 추가 만남의 여지를 붙이지 않는다. 짧게 수용하고 종료한다.
+- 개인정보·금전·협박·스토킹 등 안전 위험에서는 ㅋㅋ, 농담, 장난스러운 말투, 가벼운 이모지를 쓰지 않는다. 차분하고 명확한 경계와 다음 안전 행동을 우선한다.
+- 사용자가 설득하고 싶거나 불안하다고 말해도 사용자를 비난하거나 도덕적으로 평가하지 않는다. 왜 그 행동을 멈추는 편이 관계·경계 측면에서 적절한지 행동 중심으로 설명한다.
 - 답장 텀을 계산하지 않는다. 실제로 답할 여유가 있을 때 자연스럽게 답한다.
 - 대화 참여가 충분하면 카카오톡만 늘리지 말고 통화/만남으로 전환한다. 약속은 앞 맥락 + 활동/장소 + 구체적 날짜/시간으로 제안한다.
 - 두 번 거절하고 대안이 없으면 추가 설득하지 않는다. 거절하면서 대안 날짜를 제시하면 심리 분석보다 일정 확정을 우선한다.
@@ -318,15 +325,15 @@ function buildAnalysisContent(reqBody){
 ${commonPrompt}
 아래 표식을 정확히 같은 순서로 출력하세요. 코드블록/설명/머리말 금지. reply는 한 줄 유효 JSON 객체.
 [[meaning]]
-핵심 의미와 맥락 2~4문장
+핵심 의미와 맥락 2~3문장
 [[emotion]]
-감정·거리감·관심도의 가능성 2~4문장
+감정·거리감에 대한 가능한 해석 1~2문장. 확인되지 않은 호감 강도를 점수처럼 표현하지 말 것
 [[flow]]
-대화 흐름과 태도 변화 2~4문장
+대화 흐름과 태도 변화 1~2문장
 [[strategy]]
-답장 목표와 톤 2~4문장
+답장 목표와 톤 1~2문장
 [[caution]]
-피하면 좋은 행동 2~3문장
+피하면 좋은 행동 1~2문장
 [[reply1]]
 {"label":"가장 자연스러운 답장","text":"답장","reason":"이유"}
 [[reply2]]
@@ -336,7 +343,7 @@ ${commonPrompt}
 [[advice]]
 한 줄 조언
 [[nextAction]]
-현재 타이밍 판단 + 다음 연락 시점 + 그때까지 행동 방법 3~5문장
+현재 타이밍 판단 + 다음 연락 시점 + 그때까지 행동 방법 2~3문장
 [[done]]
 `:`
 ${commonPrompt}
@@ -387,13 +394,14 @@ app.post("/api/love-analysis", async (req,res)=>{
   try{
     const {content,isDetail,selectedSituation}=buildAnalysisContent(req.body||{});
     const model=isDetail?"claude-sonnet-5":"claude-haiku-4-5";
-    let ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?1700:750,messages:[{role:"user",content}]});
+    let ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?1850:750,messages:[{role:"user",content}]});
     let parsed=parseAnalysisSectionsText(getClaudeText(ai),isDetail,selectedSituation);
-    if(!validAnalysisResult(parsed)){
-      const retryContent=Array.isArray(content)?[...content,{type:"text",text:`중요: 위에서 지정한 [[meaning]], [[emotion]], reply 표식을 정확히 지켜 완전한 결과를 다시 출력하세요. 코드블록과 머리말은 금지합니다.`}]:content;
-      ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?1900:900,messages:[{role:"user",content:retryContent}]});
+    if(ai.stop_reason==="max_tokens" || !validAnalysisResult(parsed)){
+      const retryContent=Array.isArray(content)?[...content,{type:"text",text:`중요: 위에서 지정한 [[meaning]], [[emotion]], reply 표식을 정확히 지켜 완전한 결과를 다시 출력하세요. 각 섹션은 요구된 문장 수 안에서 간결하게 끝내고 코드블록과 머리말은 금지합니다.`}]:content;
+      ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?2200:900,messages:[{role:"user",content:retryContent}]});
       parsed=parseAnalysisSectionsText(getClaudeText(ai),isDetail,selectedSituation);
     }
+    if(ai.stop_reason==="max_tokens") throw new Error("AI 상세 분석이 끝까지 생성되지 않아 다시 시도해 주세요.");
     if(!validAnalysisResult(parsed)) throw new Error("AI 분석 섹션을 정상적으로 파싱하지 못했습니다.");
     res.json({...parsed,serverVersion:SERVER_VERSION});
   }catch(error){console.error("Claude API 오류:",error);res.status(error?.statusCode||500).json({error:"AI 분석을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});}
@@ -408,7 +416,7 @@ async function streamClaudeSections({res,model,maxTokens,content,sectionOrder,se
   const stream=anthropic.messages.stream({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:maxTokens,messages:[{role:"user",content}]});stream.on("text",t=>{fullText+=t;tryEmit();});await stream.finalMessage();finished=true;tryEmit();sendSse(res,"done",{serverVersion:SERVER_VERSION});if(!res.writableEnded)res.end();
 }
 
-app.post("/api/love-analysis-stream",async(req,res)=>{try{const {content,isDetail,selectedSituation}=buildAnalysisContent(req.body||{});setStreamHeaders(res);await streamClaudeSections({res,model:isDetail?"claude-sonnet-5":"claude-haiku-4-5",maxTokens:isDetail?1700:750,content,selectedSituation,sectionOrder:isDetail?["meaning","emotion","flow","strategy","caution","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","reply2","reply3","advice","nextAction"]});}catch(error){console.error("스트리밍 분석 API 오류:",error);if(!res.headersSent)return res.status(error?.statusCode||500).json({error:"스트리밍 분석을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});if(!res.writableEnded){sendSse(res,"error",{message:error?.message||"스트리밍 오류"});res.end();}}});
+app.post("/api/love-analysis-stream",async(req,res)=>{try{const {content,isDetail,selectedSituation}=buildAnalysisContent(req.body||{});setStreamHeaders(res);await streamClaudeSections({res,model:isDetail?"claude-sonnet-5":"claude-haiku-4-5",maxTokens:isDetail?1850:750,content,selectedSituation,sectionOrder:isDetail?["meaning","emotion","flow","strategy","caution","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","reply2","reply3","advice","nextAction"]});}catch(error){console.error("스트리밍 분석 API 오류:",error);if(!res.headersSent)return res.status(error?.statusCode||500).json({error:"스트리밍 분석을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});if(!res.writableEnded){sendSse(res,"error",{message:error?.message||"스트리밍 오류"});res.end();}}});
 
 app.post("/api/starter-stream",async(req,res)=>{try{const {relation,nickname,message,tone,starterGoal,profile,recentMemory,selectedSituation,advanced=false}=req.body||{};const context=typeof message==="string"?message.trim():"";const guard=getStarterGuard({message:context,starterGoal,selectedSituation});if(guard){setStreamHeaders(res);sendSse(res,"guard",guard);sendSse(res,"done",{serverVersion:SERVER_VERSION});if(!res.writableEnded)res.end();return;}const normalizedStarterGoal=/밀당|일부러.{0,10}(늦|기다)|답장 텀/.test(String(starterGoal||"")+" "+context)?"조작 없이 자연스럽게 연락하기":starterGoal;const prompt=`
 사용자가 지금 그 사람에게 먼저 보낼 카카오톡/DM 첫 메시지 3개를 만드세요. 답장 추천이 아니라 선톡입니다.
