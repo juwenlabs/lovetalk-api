@@ -1,0 +1,31 @@
+name: live-qa-50-pr
+on:
+  pull_request:
+    branches: ["main"]
+permissions:
+  contents: read
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract and run 50-case live QA
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('.github/workflows/live-qa-50.yml').read_text(encoding='utf-8')
+          body=s.split("python - <<'PY'",1)[1].rsplit("\n          PY",1)[0]
+          lines=body.splitlines()
+          lines=[ln[10:] if ln.startswith('          ') else ln for ln in lines]
+          code='\n'.join(lines).lstrip('\n')
+          Path('qa_runner.py').write_text(code,encoding='utf-8')
+          PY
+          python qa_runner.py
+      - name: Upload responses
+        uses: actions/upload-artifact@v4
+        with:
+          name: somtok-live-qa-50
+          path: qa-live-results.json
+          retention-days: 3
