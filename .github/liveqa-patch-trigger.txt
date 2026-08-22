@@ -1,1 +1,1 @@
-Trigger Potentia v21 source-aligned example and grounding patch.
+Trigger Potentia v22 quick-mode timing enforcement patch.
