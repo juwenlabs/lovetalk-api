@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v18-grounded-complete";
+const SERVER_VERSION = "2026-08-23-potentia-v19-final-grounding";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -34,6 +34,7 @@ const POTENTIA_SYSTEM_PROMPT = `
 [사실과 추론]
 - 사실, 사용자의 해석, AI 가설을 구분한다. 답장 속도, 메시지 길이, 이모티콘, 스토리 조회, 좋아요, 한 번의 거절/선연락 같은 단일 신호로 호감이나 속마음을 확정하지 않는다.
 - 사용자가 제공하지 않은 현재 날씨, 장소, 일정, 직업 사정, 상대의 피곤함·기분·의도·활동을 사실처럼 만들어 답장에 넣지 않는다. 필요한 정보가 없으면 추측을 문장 재료로 채우지 말고 입력된 사실만 사용하거나 낮은 위험의 질문으로 확인한다.
+- 사용자가 말하지 않은 자신의 현재 행동·경험·감정도 지어내지 않는다. 예를 들어 입력에 근거가 없는데 ‘나도 쉬고 있었어’, ‘나도 그곳에 가봤어’, ‘나도 문득 생각났어’처럼 사용자 1인칭 사실을 새로 만들지 않는다. 작은 자기 이야기는 사용자가 제공한 실제 정보에서만 사용한다.
 - 상대가 단 한 번 짧게 답한 경우 '대화할 여유가 있다', '열려 있다', '호감이 낮다/높다'처럼 참여나 감정을 판정하지 않는다. 확인 가능한 사실은 짧게 답했다는 것뿐이라고 두고 한 번 더 자연스럽게 흐름을 확인한다.
 - 참여도는 행동 강도를 정하는 내부 운영값일 뿐 호감 확률이 아니다. 사용자에게 '호감 중간~높음'처럼 준점수 형태로 포장하지 말고, 확인된 참여 행동과 판단 확신도를 분리해 설명한다. 판단 확신도가 필요하면 반드시 '높음', '중간', '낮음' 중 하나만 선택하고 '중간~높음' 같은 범위를 만들지 않는다.
 - 회피형·밀당 중·호감 퍼센트 같은 추론을 사실처럼 표현하지 않는다. 판단 확신도는 높음/중간/낮음 정도로만 표현한다.
@@ -49,7 +50,7 @@ const POTENTIA_SYSTEM_PROMPT = `
 - 이번 메시지의 주기능을 반응 / 개방형 질문 / 작은 자기 이야기 / 주제 전환 / 통화·만남 제안 / 일정 확정 / 경계 설정 / 사과·회복 / 종료 중 하나로 정한다.
 - 기본은 짧고 자연스러운 한국어 한두 문장, 질문은 한 번에 하나. 장문 해명, 질문 폭탄, 무리한 개그, 개인 밈, 과한 이모티콘을 피한다. 공유된 실제 말투는 존중한다.
 - 번호 교환 직후·소개팅·앱 매칭·초기 낯선 관계에서 사용자가 이미 반말 관계라고 명시하지 않았다면 존댓말을 기본으로 한다. 상대 이름은 첫 메시지에 꼭 필요하지 않으면 생략하고 불필요하게 반복하지 않는다.
-- 초기 관계에서 두 사람이 실제로 웃긴 맥락이나 ㅋㅋ·ㅎㅎ를 이미 공유했다는 근거가 없으면 AI가 먼저 ㅋㅋ, ㅎㅎ, ^^, 장난스러운 이모지를 자동으로 붙이지 않는다.
+- 초기 관계에서 두 사람이 실제로 웃긴 맥락이나 ㅋㅋ·ㅎㅎ·ㅎ 같은 웃음표현을 이미 공유했다는 근거가 없으면 AI가 먼저 ㅋㅋ, ㅎㅎ, ㅎ, ^^, 장난스러운 이모지를 자동으로 붙이지 않는다.
 - 한 번의 짧은 답장만으로 대화 의욕·호감 수준을 정하지 않는다. 첫 짧은 답장에는 낮은 위험의 짧은 반응과 필요하면 개방형 질문 하나로 한 번 더 흐름을 확인한다.
 - '언제 한번 봐요', '시간 되면 만나요'처럼 모호한 제안을 구체적 약속이라고 부르지 않는다. 참여가 충분하고 약속을 제안할 단계일 때만 앞 맥락 + 활동/장소 + 실제로 제안 가능한 구체적 시점을 사용한다. 사용자의 일정 정보가 없으면 임의의 날짜를 사실처럼 만들지 않는다.
 - 명확한 이성적 거절에는 관계를 다시 열어두는 문장('좋은 인연으로 남아요', '나중에 다시')이나 추가 만남의 여지를 붙이지 않는다. 짧게 수용하고 종료한다.
@@ -326,7 +327,7 @@ function buildAnalysisContent(reqBody){
   const commonPrompt=buildCommonPrompt({relation,nickname,message,tone,profile,recentMemory,selectedSituation,hasImages,hasSingleImage});
   const protocol=isDetail?`
 ${commonPrompt}
-아래 표식을 정확히 같은 순서로 출력하세요. 코드블록/설명/머리말 금지. reply는 한 줄 유효 JSON 객체.
+아래 표식을 정확히 같은 순서로 출력하세요. 코드블록/설명/머리말 금지. reply는 한 줄 유효 JSON 객체. 전체 출력은 모든 표식과 reply JSON을 포함해 약 2600자 안에서 반드시 끝내세요.
 [[meaning]]
 핵심 의미와 맥락 2문장 이내, 약 220자 이내
 [[emotion]]
@@ -347,8 +348,6 @@ ${commonPrompt}
 한 줄 조언, 약 100자 이내
 [[nextAction]]
 현재 타이밍 판단 + 다음 연락 시점 + 그때까지 행동 방법 3문장 이내, 약 240자 이내
-[[lengthRule]]
-전체 출력은 모든 표식과 reply JSON을 포함해 약 2600자 안에서 반드시 끝낼 것
 [[done]]
 `:`
 ${commonPrompt}
@@ -385,7 +384,7 @@ function parseAnalysisSectionsText(text,isDetail,selectedSituation){
     const name=order[i], marker=`[[${name}]]`, nextMarker=`[[${order[i+1]||"done"}]]`;
     const start=src.indexOf(marker); if(start<0) continue;
     let end=src.indexOf(nextMarker,start+marker.length); if(end<0) end=src.length;
-    const raw=src.slice(start+marker.length,end).trim(); if(!raw) continue;
+    const raw=src.slice(start+marker.length,end).replace(/\[\[lengthRule\]\][\s\S]*$/i,"").trim(); if(!raw) continue;
     if(name.startsWith("reply")){
       const n=Number(name.replace("reply",""))||1; const labels=["가장 자연스러운 답장","조금 더 다정한 답장","조금 더 여유 있는 답장"];
       out.replies[n-1]=sanitizeReplyObject(parseReplyObject(raw,labels[n-1]),selectedSituation,labels[n-1]);
