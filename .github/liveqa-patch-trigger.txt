@@ -1,0 +1,1 @@
+Trigger Potentia v28 truthful rejection and starter policy guards with shared SSE/JSON starter generation.
