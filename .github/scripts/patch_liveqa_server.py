@@ -4,114 +4,127 @@ import re
 p=Path('server.js')
 s=p.read_text(encoding='utf-8')
 
-assert '2026-08-23-potentia-v26-final' in s, 'expected v26 server not found'
-s=s.replace('const SERVER_VERSION = "2026-08-23-potentia-v26-final";', 'const SERVER_VERSION = "2026-08-23-potentia-v27-unified-guards";', 1)
+assert '2026-08-23-potentia-v27-unified-guards' in s, 'expected v27 server not found'
+s=s.replace('const SERVER_VERSION = "2026-08-23-potentia-v27-unified-guards";', 'const SERVER_VERSION = "2026-08-23-potentia-v28-truthful-messages";', 1)
 
-# Final deterministic policy layer. The model still writes naturally, but high-value
-# manual rules are corrected after generation instead of trusting prompt adherence alone.
-guard_code=r'''
-function applyAnalysisPolicyGuards(parsed,reqBody,isDetail){
-  const out=(parsed&&typeof parsed==="object")?parsed:{replies:[]};
-  const msg=String(reqBody?.message||"");
-  const situation=String(reqBody?.selectedSituation||"");
-  const compact=msg.replace(/\s+/g," ");
-
-  // Potentia no-reply rule: if the user already waited about 3 days and has not
-  // sent a follow-up, the next action is ONE low-pressure check now, not 3 more days.
-  const waited3=/(?:3\s*일|사흘)/.test(compact);
-  const noResponse=/(?:답(?:장)?(?:이)?\s*(?:없|안\s*왔|오지)|무응답|읽씹)/.test(compact);
-  const noFollow=/(?:후속[^.\n]{0,50}(?:아직|한\s*번도|안\s*보냈|보내지\s*않|없)|한\s*번도\s*보내지)/.test(compact);
-  const followAlreadySent=/(?:후속|확인)[^.\n]{0,50}(?:보냈|보낸|전송)/.test(compact) && !noFollow;
-  const nonUrgent=/(?:비긴급|급하지\s*않|일반적인)/.test(compact) || situation.includes("읽씹");
-  if(!isDetail && waited3 && noResponse && noFollow && !followAlreadySent && nonUrgent){
+# Explicit rejection: never invent the user's positive feelings merely to make a polite close.
+anchor='''  const nonUrgent=/(?:비긴급|급하지\\s*않|일반적인)/.test(compact) || situation.includes("읽씹");'''
+insert='''  const nonUrgent=/(?:비긴급|급하지\\s*않|일반적인)/.test(compact) || situation.includes("읽씹");
+  const explicitRomanticRejection=/(?:이성적으로[^.\\n]{0,20}(?:아니|아닌)|마음이\\s*없|더\\s*만나[^.\\n]{0,20}(?:않|안)|만나고\\s*싶지)/.test(compact);
+  if(explicitRomanticRejection){
     out.replies=[
-      {label:"가장 자연스러운 답장",text:"요즘 바쁜 것 같네요. 여유 생기면 편하게 연락 주세요.",reason:"이미 충분히 기다린 뒤 보내는 한 번의 낮은 압력 확인이라 답을 재촉하지 않아요."},
-      {label:"조금 더 따뜻한 답장",text:"일정 여유 생기면 편하게 연락 주세요.",reason:"상대가 답할 선택권을 남기면서 추가 압박을 만들지 않아요."},
-      {label:"조금 더 여유 있는 답장",text:"괜찮아요. 편할 때 연락 주세요.",reason:"무응답 이유를 추궁하지 않고 한 번만 문을 열어두는 표현이에요."}
+      {label:"깔끔하게 수용",text:"알겠습니다. 솔직하게 말씀해주셔서 감사합니다.",reason:"상대의 명확한 거절을 존중하면서 사용자가 말하지 않은 감정을 새로 만들지 않는 종료 문장입니다."},
+      {label:"짧고 정중하게",text:"그렇군요. 말씀해주셔서 감사해요.",reason:"추가 설득이나 관계를 다시 열어두는 표현 없이 정중하게 마무리합니다."},
+      {label:"가장 간결하게",text:"알겠습니다. 고마워요.",reason:"거절을 그대로 받아들이고 대화를 늘리지 않는 가장 짧은 형태입니다."}
     ];
-    out.caution="무응답 이유를 추궁하거나 질문을 연달아 보내지 마세요. 이번 한 번의 확인 뒤에도 답이 없으면 추가 연락을 반복하지 않는 것이 맞아요.";
-    out.advice="이미 약 3일을 기다렸다면 지금은 낮은 압력의 확인 메시지를 딱 한 번 보내도 됩니다.";
-    out.nextAction="지금 위 문장 중 하나를 한 번만 보내세요. 그 확인에도 다시 무응답이면 또 며칠을 세어 두 번째 후속 연락을 만들지 말고 여기서 멈추세요.";
-  }
+    out.caution="거절을 설득으로 뒤집으려 하거나 좋은 인연으로 남자고 제안하거나 미래 재회를 암시하지 마세요.";
+    out.advice="명확한 이성적 거절은 짧게 수용하고 추가 설득이나 재접근 없이 마무리하는 것이 맞습니다.";
+    out.nextAction="위 문장 중 하나를 한 번 보내고 더 이상 연락하지 마세요. 상대가 명확히 거절한 의사를 그대로 존중합니다.";
+  }'''
+assert anchor in s, 'analysis guard anchor missing'
+s=s.replace(anchor,insert,1)
 
-  // PRO confession: describe only participation facts that are actually present.
-  // Do not invent a previous mood, shared place, or relationship progression.
-  if(isDetail && /\[PRO\s*고백\s*타이밍\]/.test(msg)){
-    const facts=[];
-    if(/두\s*번[^.\n]{0,30}단둘이/.test(compact)) facts.push("두 번의 단둘 만남");
-    if(/(?:상대도\s*)?먼저\s*연락|선연락/.test(compact)) facts.push("상대의 선연락");
-    if(/다음\s*만남[^.\n]{0,40}(?:먼저\s*)?제안|만남\s*날짜[^.\n]{0,40}(?:먼저\s*)?제안/.test(compact)) facts.push("상대의 다음 만남 제안");
-    if(/서로\s*질문|질문[^.\n]{0,30}자기\s*이야기/.test(compact)) facts.push("양방향 질문과 자기 이야기");
-    if(facts.length){
-      out.flow=`입력에서 확인되는 참여 행동은 ${facts.join(", ")}입니다. 이 밖의 이전 분위기·장소·과거 사건은 입력에 없으므로 판단 근거로 추가하지 않습니다.`;
-    }
+starter_code=r'''
+function applyStarterPolicyGuards(parsed,reqBody){
+  const out=(parsed&&typeof parsed==="object")?parsed:{replies:[]};
+  const relation=String(reqBody?.relation||"");
+  const context=String(reqBody?.message||"");
+  const compact=context.replace(/\s+/g," ");
+  const initialNumberExchange=/(?:번호\s*교환|연락처\s*교환)/.test(relation+" "+compact);
+  const eventArrivalContext=/행사/.test(compact) && /(?:집|도착|들어가)/.test(compact);
+  const userActuallyStatedFeeling=/(?:좋았|반가웠|즐거웠|기대된|생각났)/.test(compact);
+  if(initialNumberExchange && eventArrivalContext && !userActuallyStatedFeeling){
+    out.replies=[
+      {label:"자연스럽게",text:"오늘 행사 끝나고 잘 들어가셨나요?",reason:"입력에 있는 행사와 귀가 맥락만 사용해 자연스럽게 안부를 여는 문장입니다."},
+      {label:"다정하게",text:"집에는 잘 도착하셨어요?",reason:"상대의 현재 감정이나 상태를 추측하지 않고 확인 가능한 안부만 묻습니다."},
+      {label:"부담 최소화",text:"오늘 행사 마무리는 잘하셨어요?",reason:"사용자가 느꼈다고 말하지 않은 호감·기대·감정을 만들어내지 않는 낮은 압력 질문입니다."}
+    ];
   }
   return out;
 }
 
-async function generateAnalysisResult(reqBody){
-  const {content,isDetail,selectedSituation}=buildAnalysisContent(reqBody||{});
-  const model=isDetail?"claude-sonnet-5":"claude-haiku-4-5";
-  let ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?1900:750,messages:[{role:"user",content}]});
-  let parsed=parseAnalysisSectionsText(getClaudeText(ai),isDetail,selectedSituation);
-  if(ai.stop_reason==="max_tokens" || !validAnalysisResult(parsed,isDetail)){
-    const retryContent=Array.isArray(content)?[...content,{type:"text",text:`중요: 이전 출력이 너무 길거나 불완전했습니다. 위의 모든 [[section]]과 reply1~3을 빠짐없이 유지하되 전체를 약 2200자 안으로 압축해 처음부터 다시 출력하세요. 각 섹션의 글자 제한을 지키고 nextAction은 반드시 완결된 문장으로 끝내세요. 코드블록과 머리말은 금지합니다.`}]:content;
-    ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?2100:900,messages:[{role:"user",content:retryContent}]});
-    parsed=parseAnalysisSectionsText(getClaudeText(ai),isDetail,selectedSituation);
-  }
-  if(ai.stop_reason==="max_tokens" && !analysisEndingLooksComplete(parsed)) throw new Error("AI 상세 분석이 끝까지 생성되지 않아 다시 시도해 주세요.");
-  if(!validAnalysisResult(parsed,isDetail)) throw new Error("AI 분석 섹션을 정상적으로 파싱하지 못했습니다.");
-  parsed=applyAnalysisPolicyGuards(parsed,reqBody||{},isDetail);
-  return {parsed,isDetail};
+async function generateStarterResult(reqBody){
+  const {relation,nickname,message,tone,starterGoal,profile,recentMemory,selectedSituation,advanced=false}=reqBody||{};
+  const context=typeof message==="string"?message.trim():"";
+  const guard=getStarterGuard({message:context,starterGoal,selectedSituation});
+  if(guard) return {guard,result:null,advanced:!!advanced};
+  const normalizedStarterGoal=/밀당|일부러.{0,10}(늦|기다)|답장 텀/.test(String(starterGoal||"")+" "+context) ? "조작 없이 자연스럽게 연락하기" : starterGoal;
+  const prompt=`
+사용자가 지금 그 사람에게 먼저 보낼 카카오톡/DM 첫 메시지 3개를 만들어주세요. 이 작업은 답장 추천이 아닙니다.
+[그 사람] ${nickname||"새로운/임의 상대"}
+[현재 관계] ${relation||"애매한 관계"}
+[오늘의 목표] ${normalizedStarterGoal||"부담 없이 먼저 연락하기"}
+[원하는 말투] ${tone||"자연스럽게"}
+[최근 상황 - 과거 배경정보] ${context||"입력 없음"}
+[선택한 상황] ${selectedSituation||"없음"}
+[저장된 프로필] ${profile?JSON.stringify(profile):"없음"}
+[최근 관계 기억] ${recentMemory||"없음"}
+${situationRules(selectedSituation)}
+반드시 지킬 규칙:
+- 사용자가 지금 먼저 보내는 말만 작성하세요.
+- 최근 상황은 상대가 방금 보낸 메시지가 아닙니다.
+- '응','웅','나도','그래'처럼 답장처럼 시작하지 마세요.
+- 정보가 부족해도 질문하지 말고 바로 3개를 작성하세요.
+- 관계 단계보다 앞서는 연락, 재촉, 추가 설득, 우회 연락은 만들지 마세요.
+- 존댓말과 반말을 한 문장 안에서 섞지 마세요.
+- 사용자가 직접 말하지 않은 자신의 감정(좋았어요·반가웠어요·기대돼요·생각났어요)이나 상대의 현재 상태(쉬고 있다·피곤하다·바쁠 것이다)를 사실처럼 만들어내지 마세요.
+- 번호 교환 직후·소개팅·앱 매칭 등 초기 낯선 관계에서 반말 합의가 없다면 존댓말을 기본으로 하세요.
+- 실제 카톡에서 바로 보낼 수 있는 짧고 자연스러운 문장만 작성하세요.
+${advanced ? `- 이것은 PRO 고급 먼저 보내기 추천입니다.
+- 저장된 프로필, 최근 관계 기억, 선택한 상황, 오늘의 목표를 함께 고려해 일반 추천보다 더 정교하게 설계하세요.
+- 세 문장은 각각 가장 자연스러운 접근, 관계 진전형, 부담 최소화형처럼 역할이 겹치지 않게 만드세요.
+- 각 reason에는 왜 지금 이 문장이 적합한지 1~2문장으로 구체적으로 설명하세요.` : ""}
+JSON만 출력하세요.
+{"replies":[{"label":"자연스럽게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"다정하게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"센스 있게","text":"먼저 보낼 메시지","reason":"이유 1문장"}]}
+`;
+  let parsed=await createJsonWithRetry({model:"claude-haiku-4-5",maxTokens:advanced?420:300,retryMaxTokens:advanced?520:380,content:prompt});
+  if(!Array.isArray(parsed.replies)||parsed.replies.length<3) throw new Error("AI가 추천 문장 3개를 반환하지 않았습니다.");
+  parsed.replies=parsed.replies.slice(0,3).map((x,i)=>sanitizeReplyObject(x,selectedSituation,["자연스럽게","다정하게","센스 있게"][i]));
+  parsed=applyStarterPolicyGuards(parsed,reqBody||{});
+  return {guard:null,result:parsed,advanced:!!advanced};
 }
 '''
+marker='app.post("/api/starter", async (req,res)=>{'
+assert marker in s, 'starter endpoint marker missing'
+s=s.replace(marker,starter_code+'\n'+marker,1)
 
-marker='app.post("/api/love-analysis", async (req,res)=>{'
-assert marker in s, 'analysis endpoint marker missing'
-s=s.replace(marker,guard_code+'\n'+marker,1)
-
-# Non-streaming endpoint now uses the shared generation + deterministic policy layer.
-pattern=r'app\.post\("/api/love-analysis", async \(req,res\)=>\{.*?\n\}\);\n\nfunction setStreamHeaders'
-replacement='''app.post("/api/love-analysis", async (req,res)=>{
+# Use one shared starter generator for JSON and the actual app SSE path.
+pattern=r'app\.post\("/api/starter", async \(req,res\)=>\{.*?\n\}\);\n\nfunction buildAnalysisContent'
+replacement='''app.post("/api/starter", async (req,res)=>{
   try{
-    const {parsed}=await generateAnalysisResult(req.body||{});
-    res.json({...parsed,serverVersion:SERVER_VERSION});
-  }catch(error){console.error("Claude API 오류:",error);res.status(error?.statusCode||500).json({error:"AI 분석을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});}
+    const {guard,result,advanced}=await generateStarterResult(req.body||{});
+    if(guard) return res.json({...guard,advanced,serverVersion:SERVER_VERSION});
+    res.json({...result,advanced,serverVersion:SERVER_VERSION});
+  }catch(error){console.error("선톡 API 오류:",error);res.status(500).json({error:"선톡 추천을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});}
 });
 
-function setStreamHeaders'''
+function buildAnalysisContent'''
 s,n=re.subn(pattern,replacement,s,count=1,flags=re.S)
-assert n==1, f'non-stream endpoint replacement count={n}'
+assert n==1, f'starter JSON endpoint replacement count={n}'
 
-# The app actually uses the SSE endpoint for normal analysis. Buffer the AI result,
-# run the SAME policy guards, then send the sections over SSE. This keeps the app
-# transport unchanged while preventing stream/non-stream behavior drift.
-pattern=r'app\.post\("/api/love-analysis-stream",async\(req,res\)=>\{.*?\}\);\n\napp\.post\("/api/starter-stream"'
-replacement='''app.post("/api/love-analysis-stream",async(req,res)=>{
+pattern=r'app\.post\("/api/starter-stream",async\(req,res\)=>\{.*?\}\);\n\napp\.listen'
+replacement='''app.post("/api/starter-stream",async(req,res)=>{
   try{
     setStreamHeaders(res);
-    const {parsed,isDetail}=await generateAnalysisResult(req.body||{});
-    const order=isDetail?["meaning","emotion","flow","strategy","caution","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","reply2","reply3","advice","nextAction"];
-    for(const name of order){
-      let value;
-      if(name.startsWith("reply")){
-        const idx=(Number(name.replace("reply",""))||1)-1;
-        value=parsed.replies?.[idx];
-      }else value=parsed[name];
-      if(value!==undefined && value!==null && value!=="") sendSse(res,"section",{name,value});
+    const {guard,result}=await generateStarterResult(req.body||{});
+    if(guard){
+      sendSse(res,"guard",guard);
+    }else{
+      const replies=Array.isArray(result?.replies)?result.replies:[];
+      replies.slice(0,3).forEach((value,i)=>sendSse(res,"section",{name:`reply${i+1}`,value}));
     }
     sendSse(res,"done",{serverVersion:SERVER_VERSION});
     if(!res.writableEnded)res.end();
-  }catch(error){console.error("스트리밍 분석 API 오류:",error);if(!res.headersSent)return res.status(error?.statusCode||500).json({error:"스트리밍 분석을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});if(!res.writableEnded){sendSse(res,"error",{message:error?.message||"스트리밍 오류"});res.end();}}
+  }catch(error){console.error("선톡 스트리밍 API 오류:",error);if(!res.headersSent)return res.status(500).json({error:"선톡 스트리밍 추천을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});if(!res.writableEnded){sendSse(res,"error",{message:error?.message||"스트리밍 오류"});res.end();}}
 });
 
-app.post("/api/starter-stream"'''
+app.listen'''
 s,n=re.subn(pattern,replacement,s,count=1,flags=re.S)
-assert n==1, f'stream endpoint replacement count={n}'
+assert n==1, f'starter SSE endpoint replacement count={n}'
 
-assert '2026-08-23-potentia-v27-unified-guards' in s
-assert 'function applyAnalysisPolicyGuards' in s
-assert 'async function generateAnalysisResult' in s
-assert 'await generateAnalysisResult(req.body||{})' in s
+assert '2026-08-23-potentia-v28-truthful-messages' in s
+assert 'function applyStarterPolicyGuards' in s
+assert 'async function generateStarterResult' in s
+assert 'explicitRomanticRejection' in s
 p.write_text(s,encoding='utf-8')
-print('Potentia v27 unified analysis guards patch applied')
+print('Potentia v28 truthful messages patch applied')
