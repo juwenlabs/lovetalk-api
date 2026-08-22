@@ -1,1 +1,1 @@
-Trigger Potentia v16 live-QA quality corrections.
+Trigger Potentia v17 style-consistency corrections.
