@@ -1,1 +1,1 @@
-Trigger Potentia v20 manual-aligned timing and grounding patch.
+Retry Potentia v20 manual-aligned patch after anchor correction.
