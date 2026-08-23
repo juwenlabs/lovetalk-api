@@ -1,0 +1,28 @@
+name: patch-v40-grounded-normal
+on:
+  pull_request:
+    branches: ["main"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.pull_request.head.ref == 'agent/trigger-v40-grounded-normal'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply v40 patch
+        run: python .github/scripts/patch_v40_grounded_normal.py
+      - name: Syntax check
+        run: node --check server.js
+      - name: Commit v40 to main
+        run: |
+          git config user.name "juwenlabs"
+          git config user.email "actions@users.noreply.github.com"
+          git add server.js
+          git commit -m "Apply Potentia v40 grounded normal replies"
+          git push origin HEAD:main
