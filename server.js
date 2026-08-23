@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v28-truthful-messages";
+const SERVER_VERSION = "2026-08-23-potentia-v29-coach-safety";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -282,6 +282,12 @@ function getStarterGuard({message="",starterGoal="",selectedSituation=""}){
   if(/(후속|확인 메시지).{0,60}(무응답|답이 없|답 없음)|다시.{0,20}(이틀|2일).{0,20}(무응답|답이 없)/.test(t)) return stop("이미 한 번 확인한 뒤에도 무응답이 이어지고 있어요.","더 보내지 말고 여기서 멈추는 것이 좋아요.");
   if(/(한|1|두|2)\s*시간.{0,40}(답이 없|답 없음|무응답|읽었|읽씹)/.test(t)) return stop("아직 추가 연락을 판단하기에는 너무 이른 시간이에요.","불안을 줄이기 위한 재촉 메시지는 보내지 말고 상대가 답할 시간을 주세요.");
   if(/스토리.{0,40}(답이 없|답 없음|무응답|읽씹)|답.{0,20}(없|안).{0,40}스토리/.test(t)) return stop("SNS 활동은 관계 의사를 확정하는 근거가 아니에요.","스토리 조회를 이유로 다시 연락하지 말고, 이미 보낸 메시지에 답할 시간을 주세요.");
+  if(/(?:협박|폭력|스토킹|해코지|죽여|때리|찾아가서)/.test(t)) return stop("협박·폭력·스토킹 가능성이 있는 안전 위험 상황이에요.","일반적인 선톡이나 관계 기술보다 안전한 거리두기와 증거 보존이 우선이에요. 상대를 자극하는 도발 문장을 만들지 말고, 필요하면 신뢰할 수 있는 사람이나 관련 기관의 도움을 받으세요.");
+  if(/(?:자해\s*협박|자살|죽겠|죽을\s*거|극단적\s*선택)/.test(t)) return stop("자해 위협이 포함된 고위험 상황이에요.","연애 기술로 달래거나 책임을 떠안는 문장을 만들기보다 즉각적인 안전을 우선하세요. 급박한 위험이면 주변의 신뢰할 수 있는 사람이나 지역 응급·전문 도움을 연결하는 것이 우선입니다.");
+  if(/(?:사진|영상|사적\s*사진).{0,30}(?:유포|퍼뜨|공개|협박)|(?:유포|퍼뜨).{0,30}(?:사진|영상)/.test(t)) return stop("사적 사진·영상 유포 위협이 포함된 안전 위험 상황이에요.","일반 연애 답장보다 증거 보존과 안전한 거리두기를 우선하세요. 추가 사진·개인정보를 보내지 말고 상대를 자극하는 문장을 피하세요.");
+  if(/(?:주민등록번호|계좌\s*비밀번호|집\s*비밀번호|실시간\s*위치|신분증|사적인\s*사진).{0,30}(?:요구|보내|알려|달라)|(?:요구|보내|알려|달라).{0,30}(?:주민등록번호|계좌\s*비밀번호|집\s*비밀번호|실시간\s*위치|신분증|사적인\s*사진)/.test(t)) return stop("과도한 개인정보 요구가 포함된 상황이에요.","선톡을 만들기보다 개인정보 제공을 거절하는 것이 우선이에요. 주민등록번호·비밀번호·실시간 위치·사적 사진은 보내지 마세요.");
+  if(/(?:미성년|중학생|고등학생|만\s*1[0-7]세).{0,60}(?:성적|성관계|야한|노출|호텔|사진\s*보내)|(?:성적|성관계|야한|노출).{0,60}(?:미성년|중학생|고등학생|만\s*1[0-7]세)/.test(t)) return stop("미성년자와 관련된 성적 상황이에요.","성적 만남·사진·압박 문장을 만들지 않습니다. 일반적이고 존중하는 대화와 안전한 경계만 유지하세요.");
+  if(/(?:상사|직장\s*상급자|교수|지도교수|권력관계).{0,50}(?:강요|압박|불이익|협박)/.test(t)) return stop("권력관계에서의 강압 가능성이 있는 상황이에요.","관계 기술보다 경계와 안전이 우선이에요. 불이익을 피하기 위한 사적·성적 요구에 응하도록 돕는 문장은 만들지 않습니다.");
   if(/빌려달|송금|대출|보증|급전|금전/.test(t)) return stop("금전 요구가 포함된 상황이에요.","관계를 유지하기 위한 선톡보다 금전 거래를 거절하고 개인정보·송금을 추가로 제공하지 않는 것이 우선이에요. 필요하면 ‘금전 거래는 어렵습니다.’처럼 짧게 경계를 세우세요.");
   return null;
 }
@@ -364,6 +370,8 @@ ${commonPrompt}
 아래 표식을 정확히 같은 순서로 출력하세요. 코드블록/설명/머리말 금지. reply는 한 줄 유효 JSON 객체. 전체 출력은 모든 표식과 reply JSON을 포함해 약 2600자 안에서 반드시 끝내세요.
 [[meaning]]
 핵심 의미와 맥락 2문장 이내, 약 220자 이내
+[[confidence]]
+높음 / 중간 / 낮음 중 하나만 출력. 범위 표현이나 퍼센트 금지
 [[emotion]]
 감정·거리감에 대한 가능한 해석 2문장 이내, 약 160자 이내. 확인되지 않은 호감 강도를 점수처럼 표현하지 말 것
 [[flow]]
@@ -372,6 +380,8 @@ ${commonPrompt}
 답장 목표와 톤 2문장 이내, 약 160자 이내
 [[caution]]
 피하면 좋은 행동 2문장 이내, 약 140자 이내
+[[dontSend]]
+지금 보내지 말아야 할 문장이나 행동을 1문장으로 구체적으로 제시. 입력에 없는 사실을 예시로 만들지 말 것
 [[reply1]]
 {"label":"가장 자연스러운 답장","text":"입력된 사실만으로 보낼 수 있는 답장 또는 메시지가 불필요하면 그에 맞는 짧은 문장","reason":"이유"}
 [[reply2]]
@@ -417,7 +427,7 @@ ${commonPrompt}
 
 function parseAnalysisSectionsText(text,isDetail,selectedSituation){
   const src=String(text||"");
-  const order=isDetail?["meaning","emotion","flow","strategy","caution","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","reply2","reply3","advice","nextAction"];
+  const order=isDetail?["meaning","confidence","emotion","flow","strategy","caution","dontSend","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","reply2","reply3","advice","nextAction"];
   const out={replies:[]};
   for(let i=0;i<order.length;i++){
     const name=order[i], marker=`[[${name}]]`, nextMarker=`[[${order[i+1]||"done"}]]`;
@@ -462,6 +472,8 @@ function applyAnalysisPolicyGuards(parsed,reqBody,isDetail){
       {label:"가장 간결하게",text:"알겠습니다. 고마워요.",reason:"거절을 그대로 받아들이고 대화를 늘리지 않는 가장 짧은 형태입니다."}
     ];
     out.caution="거절을 설득으로 뒤집으려 하거나 좋은 인연으로 남자고 제안하거나 미래 재회를 암시하지 마세요.";
+    out.dontSend="아직 저를 잘 모르셔서 그래요, 한 번만 더 만나봐요처럼 거절을 번복시키려는 문장은 보내지 마세요.";
+    out.confidence="높음";
     out.advice="명확한 이성적 거절은 짧게 수용하고 추가 설득이나 재접근 없이 마무리하는 것이 맞습니다.";
     out.nextAction="위 문장 중 하나를 한 번 보내고 더 이상 연락하지 마세요. 상대가 명확히 거절한 의사를 그대로 존중합니다.";
   }
@@ -504,6 +516,10 @@ async function generateAnalysisResult(reqBody){
   if(ai.stop_reason==="max_tokens" && !analysisEndingLooksComplete(parsed)) throw new Error("AI 상세 분석이 끝까지 생성되지 않아 다시 시도해 주세요.");
   if(!validAnalysisResult(parsed,isDetail)) throw new Error("AI 분석 섹션을 정상적으로 파싱하지 못했습니다.");
   parsed=applyAnalysisPolicyGuards(parsed,reqBody||{},isDetail);
+  if(isDetail){
+    if(!/^(높음|중간|낮음)$/.test(String(parsed.confidence||"").trim())) parsed.confidence="낮음";
+    if(!String(parsed.dontSend||"").trim()) parsed.dontSend=String(parsed.caution||"추가 압박이나 입력에 없는 사실을 만들어 보내지 마세요.");
+  }
   return {parsed,isDetail};
 }
 
@@ -527,7 +543,7 @@ app.post("/api/love-analysis-stream",async(req,res)=>{
   try{
     setStreamHeaders(res);
     const {parsed,isDetail}=await generateAnalysisResult(req.body||{});
-    const order=isDetail?["meaning","emotion","flow","strategy","caution","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","reply2","reply3","advice","nextAction"];
+    const order=isDetail?["meaning","confidence","emotion","flow","strategy","caution","dontSend","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","reply2","reply3","advice","nextAction"];
     for(const name of order){
       let value;
       if(name.startsWith("reply")){
