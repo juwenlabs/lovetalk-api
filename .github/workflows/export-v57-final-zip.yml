@@ -1,0 +1,51 @@
+name: Export Somtok v57 Final ZIP
+
+on:
+  push:
+    branches:
+      - agent/export-v57-final-zip
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify v57
+        run: grep -F '2026-08-23-potentia-v57-no-send-detail-replies' server.js
+
+      - name: Build final runtime package
+        run: |
+          mkdir -p somtok-ai-backend-v57
+          cp server.js package.json somtok-ai-backend-v57/
+          cat > somtok-ai-backend-v57/README_FINAL.txt <<'EOF'
+          썸톡 AI 백엔드 최종본
+          버전: 2026-08-23-potentia-v57-no-send-detail-replies
+          기준: GitHub main / Render 운영본과 동일한 server.js + package.json
+
+          실행:
+          1) npm install
+          2) 필요한 환경변수 설정
+          3) npm start
+
+          주요 환경변수:
+          - ANTHROPIC_API_KEY
+          - DATABASE_URL (DB 기능 사용 시)
+          - NOTICE_ADMIN_PASSWORD (공지 관리자 기능 사용 시)
+          - PORT (호스팅 환경에서 보통 자동 지정)
+
+          이 ZIP은 QA용 패치/워크플로 기록을 제외한 실제 실행용 최종본입니다.
+          EOF
+          zip -r somtok-ai-backend-v57-final.zip somtok-ai-backend-v57
+
+      - name: Upload final ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: somtok-ai-backend-v57-final
+          path: somtok-ai-backend-v57-final.zip
+          if-no-files-found: error
+          retention-days: 7
