@@ -1,0 +1,28 @@
+name: patch-v41-availability-boundaries
+on:
+  pull_request:
+    branches: ["main"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.pull_request.head.ref == 'agent/trigger-v41-availability-boundaries'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply v41 patch
+        run: python .github/scripts/patch_v41_availability_boundaries.py
+      - name: Syntax check
+        run: node --check server.js
+      - name: Commit v41 to main
+        run: |
+          git config user.name "juwenlabs"
+          git config user.email "actions@users.noreply.github.com"
+          git add server.js
+          git commit -m "Apply Potentia v41 availability and boundary guards"
+          git push origin HEAD:main
