@@ -1,0 +1,28 @@
+name: patch-v39-selfharm
+on:
+  pull_request:
+    branches: ["main"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.pull_request.head.ref == 'agent/trigger-v39-selfharm'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply v39 patch
+        run: python .github/scripts/patch_v39_selfharm_korean.py
+      - name: Syntax check
+        run: node --check server.js
+      - name: Commit v39 to main
+        run: |
+          git config user.name "juwenlabs"
+          git config user.email "actions@users.noreply.github.com"
+          git add server.js
+          git commit -m "Apply Potentia v39 Korean self-harm guard"
+          git push origin HEAD:main
