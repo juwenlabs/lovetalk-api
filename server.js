@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v57-no-send-detail-replies";
+const SERVER_VERSION = "2026-08-23-potentia-v58-fast-pro-analysis";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -1790,7 +1790,8 @@ async function generateAnalysisResult(reqBody){
   const directQuick=getDeterministicQuickAnalysis(reqBody||{});
   if(directQuick) return {parsed:directQuick,isDetail:false};
   const {content,isDetail,selectedSituation}=buildAnalysisContent(reqBody||{});
-  const model=isDetail?"claude-sonnet-5":"claude-haiku-4-5";
+  const fastProDetail=!!(isDetail && reqBody?.advanced);
+  const model=fastProDetail?"claude-haiku-4-5":(isDetail?"claude-sonnet-5":"claude-haiku-4-5");
   const taskMessage=String(reqBody?.message||"");
   const isMemoryTask=isDetail && /\[PRO\s*상대별\s*AI\s*기억\s*강화\]/.test(taskMessage);
   const isMonthlyTask=isDetail && /\[PRO\s*월간\s*관계\s*리포트\]/.test(taskMessage);
