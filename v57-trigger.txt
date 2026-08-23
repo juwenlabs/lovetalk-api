@@ -1,0 +1,1 @@
+Trigger v57 no-send detail reply-card patch.
