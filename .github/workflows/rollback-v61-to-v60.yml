@@ -1,0 +1,31 @@
+name: rollback-v61-to-v60
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  rollback:
+    if: github.event.head_commit.message == 'Rollback v61 server to verified v60'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Restore verified v60 server
+        run: git checkout 89b3694c7b45c1cd600c63b81784fea596b21b0c -- server.js
+      - name: Syntax check
+        run: node --check server.js
+      - name: Commit restored server and remove workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/rollback-v61-to-v60.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.js .github/workflows/rollback-v61-to-v60.yml
+          git commit -m "Restore verified Potentia v60 after speed experiment"
+          git push origin HEAD:main
