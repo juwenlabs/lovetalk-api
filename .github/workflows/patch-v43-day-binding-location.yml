@@ -1,0 +1,28 @@
+name: patch-v43-day-binding-location
+on:
+  pull_request:
+    branches: ["main"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.pull_request.head.ref == 'agent/trigger-v43-day-binding-location'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply v43 patch
+        run: python .github/scripts/patch_v43_day_binding_location.py
+      - name: Syntax check
+        run: node --check server.js
+      - name: Commit v43 to main
+        run: |
+          git config user.name "juwenlabs"
+          git config user.email "actions@users.noreply.github.com"
+          git add server.js
+          git commit -m "Apply Potentia v43 day binding and location safety"
+          git push origin HEAD:main
