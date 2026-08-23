@@ -1,0 +1,34 @@
+name: patch-v70-grounded-starter
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Add v70 grounded starter workflow'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply v70 patch
+        run: python .github/scripts/patch_v70_grounded_starter_preference.py
+      - name: Syntax check
+        run: node --check server.js
+      - name: Commit v70 and remove temporary workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/patch-v70-grounded-starter.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.js .github/workflows/patch-v70-grounded-starter.yml
+          git commit -m "Apply Potentia v70 grounded starter"
+          git push origin HEAD:main
