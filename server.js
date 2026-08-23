@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v59-fast-pro-grounding";
+const SERVER_VERSION = "2026-08-23-potentia-v60-fast-pro-grounding-polish";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -747,10 +747,24 @@ function applyAnalysisPolicyGuards(parsed,reqBody,isDetail){
     const isProMemory=/\[PRO\s*상대별\s*AI\s*기억\s*강화\]/i.test(msg);
     const inputHasExplicitTiming=/(?:\d+\s*(?:일|주|주일|시간|분)|하루|이틀|사흘|며칠|일주일|한\s*달|이번\s*주|다음\s*주)[^.\n]{0,50}(?:기다|연락|관찰|확인|보내|만나|가능)/.test(compact);
     const placeholderReply=/(?:\[[^\]]{1,120}\]|\((?:상대|구체적|답변|메시지|상황)[^)]{0,120}\)|상대\s*메시지\s*필요|구체적\s*답장\s*필요|상황에\s*따라\s*다릅니다)/;
+    const metaInstructionReply=/(?:구체적[^.\n]{0,50}(?:대화|메시지)[^.\n]{0,50}(?:없|필요)|답장을\s*추천하기\s*어렵|답변\s*\+|역질문\s*1개를\s*함께\s*보내|형태로[^.\n]{0,60}(?:이어가|마치)|상대의\s*다음[^.\n]{0,50}기다린\s*후)/;
     if(Array.isArray(out.replies)) out.replies=out.replies.filter(r=>{
       const text=String(r?.text||"").trim();
-      return text && !placeholderReply.test(text);
+      return text && !placeholderReply.test(text) && !metaInstructionReply.test(text);
     });
+    const isNamedProTask=isProConfession||isProDate||isProRisk||isProMonthly||isProMemory;
+    const looksLikeDirectDialogue=/\n/.test(msg)||/(?:상대|나|저|사용자)\s*[:：]/.test(msg)||/["“”]/.test(msg);
+    if(!isNamedProTask && !looksLikeDirectDialogue){
+      out.replies=[];
+      out.advice="현재 입력은 관계 상황 요약이므로 특정 답장 문장을 만들기보다 확인된 참여 행동만 기준으로 보는 것이 정확합니다. 실제 답장 추천이 필요하면 최근 대화 문장을 그대로 입력하세요.";
+      out.nextAction="현재 정보만으로 특정 연락 시점이나 답장을 새로 만들지 마세요. 실제 최근 대화 문장이 있을 때 입력된 사실만 사용해 다음 행동을 정하세요.";
+    }
+
+    const generatedArbitraryPeriod=/(?:최근\s*)?\d+\s*~\s*\d+\s*(?:일|주)|\d+\s*(?:일|주)\s*(?:뒤|동안)|며칠\s*(?:뒤|동안)|한두\s*번(?:\s*더|의\s*흐름|의\s*사이클)/;
+    if(!inputHasExplicitTiming){
+      if(generatedArbitraryPeriod.test(String(out.strategy||""))) out.strategy="입력에서 확인되는 사실과 상대의 실제 참여 행동만 기준으로 다음 단계를 판단하세요. 임의의 관찰 횟수나 대기 기간을 새로 정하지 않습니다.";
+      if(generatedArbitraryPeriod.test(String(out.advice||""))) out.advice="입력된 사실만 기준으로 판단하세요. 더 정확한 분석이 필요하면 임의의 기간을 정하기보다 실제 최근 대화 내용을 그대로 제공하는 편이 낫습니다.";
+    }
 
     if(!inputHasExplicitTiming && /(?:\d+\s*~\s*\d+\s*(?:일|주)|\d+\s*(?:일|주)\s*(?:뒤|동안)|며칠\s*(?:뒤|동안)|한두\s*번의\s*사이클)/.test(String(out.nextAction||""))){
       out.nextAction="상대의 실제 참여 행동을 다음 대화 흐름에서 확인하세요. 입력에 없는 대기 기간을 새로 정하지 말고, 사용자의 실제 일정이 확인되지 않았다면 날짜·시간을 임의로 확정하지 마세요.";
@@ -796,7 +810,10 @@ function applyAnalysisPolicyGuards(parsed,reqBody,isDetail){
       const hasConcreteInitiative=/(?:상대(?:가|는|도)?[^.\n]{0,80}(?:먼저\s*연락|선연락|약속\s*제안|날짜\s*제안|만남\s*제안))/.test(compact);
       if(!hasMeetingEvidence && !hasConcreteInitiative){
         out.replies=[];
+        out.meaning="확인된 사실은 최근 일상 대화가 이어지고 서로 질문을 주고받는다는 점입니다. 이 정보만으로 고백 수용 가능성이나 관계 단계의 진전을 확정하지 않습니다.";
         out.confidence="낮음";
+        out.emotion="상대가 질문에 참여한다는 행동은 확인되지만, 연애 감정이나 고백을 원하는지는 입력에 없습니다.";
+        out.flow="상호 질문과 일상 대화가 이어진다는 참여 행동은 확인되지만, 실제 만남·통화·상대의 선연락·구체적 일정 조율 여부는 입력에 없습니다.";
         out.strategy="상호 질문이 있다는 사실만으로 고백 단계라고 판단하지 않습니다. 실제 만남과 상대의 자발적 연락·대화 재개·일정 참여 같은 행동 근거를 먼저 확인하세요.";
         out.caution="일상 대화가 이어진다는 이유만으로 상대의 연애 감정이나 고백 수용 가능성을 높게 잡지 마세요.";
         out.dontSend="입력에 없는 호감이나 특별한 관계를 전제로 한 고백·떠보기 메시지는 지금 만들지 마세요.";
@@ -808,6 +825,10 @@ function applyAnalysisPolicyGuards(parsed,reqBody,isDetail){
     if(isProDate){
       const userMoviePreference=/(?:나는|내가|저는|저도|나도)[^.\n]{0,80}(?:영화[^.\n]{0,30}(?:좋아|자주|보고\s*싶)|(?:좋아|자주|보고\s*싶)[^.\n]{0,30}영화)/.test(compact);
       if(/영화/.test(compact) && !userMoviePreference){
+        out.meaning="확인된 사실은 대화가 이어지고 상대가 영화 이야기를 했다는 점입니다. 영화 주제 하나만으로 만남 제안을 원한다거나 호감이 높다고 판단하지 않습니다.";
+        out.confidence="낮음";
+        out.emotion="상대가 영화 주제에 참여한 것은 대화 행동으로 볼 수 있지만, 만남 의향이나 감정 강도는 입력에 없습니다.";
+        out.flow="사용자는 대화가 자연스럽게 이어진다고 설명했고 상대가 영화 이야기를 했습니다. 그 외에 선연락·약속 제안·구체적 일정 참여 여부는 확인되지 않았습니다.";
         out.replies=[
           {label:"가장 자연스러운 답장",text:"어떤 영화 좋아하세요?",reason:"상대가 실제로 꺼낸 영화 주제만 사용해 취향을 한 번 더 확인합니다."},
           {label:"조금 더 구체적인 답장",text:"최근에 본 영화 중에 추천할 만한 거 있어요?",reason:"사용자의 취향을 지어내지 않고 상대가 말한 주제를 자연스럽게 확장합니다."},
