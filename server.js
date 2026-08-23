@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v66-grounded-fast-pro";
+const SERVER_VERSION = "2026-08-23-potentia-v67-grounded-fast-pro-final";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -1932,7 +1932,7 @@ function getInstantCompactProResult(reqBody,task){
     if(boardGame && whenMatch){
       const when=whenMatch[1].replace(/\s+/g," ").trim();
       return {
-        meaning:`상대가 보드게임을 좋아한다고 직접 말했고 사용자는 ${when}이 가능하다고 밝혔습니다. 이 두 사실만으로 가볍게 만남을 제안할 근거는 충분합니다.`,
+        meaning:`상대가 보드게임을 좋아한다고 직접 말했고 사용자의 실제 가능 일정은 ${when}입니다. 이 두 사실만으로 가볍게 만남을 제안할 근거는 충분합니다.`,
         confidence:"중간",
         emotion:"상대의 보드게임 선호는 확인된 취향이지만, 사용자를 만나고 싶다는 감정이나 의사까지 확인된 것은 아닙니다.",
         flow:`확인된 사실은 상대의 보드게임 선호와 사용자의 ${when} 가능 일정입니다. 상대의 실제 가능 여부는 아직 확인되지 않았습니다.`,
