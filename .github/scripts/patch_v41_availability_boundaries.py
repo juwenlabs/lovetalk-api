@@ -57,7 +57,7 @@ replacement='''  const concreteAlternativeDate=/(?:이번\\s*주|이번주)[^.\\
   }
 
   const appMatchCookingFirst='''
-s2,n=re.subn(pattern,replacement,s,count=1,flags=re.S)
+s2,n=re.subn(pattern,lambda m: replacement,s,count=1,flags=re.S)
 assert n==1, f'concrete alternative block replacement failed: {n}'
 s=s2
 
