@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v56-unknown-date-block-bypass";
+const SERVER_VERSION = "2026-08-23-potentia-v57-no-send-detail-replies";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -734,6 +734,20 @@ function applyAnalysisPolicyGuards(parsed,reqBody,isDetail){
     if(/서로\s*질문|질문[^.\n]{0,30}자기\s*이야기/.test(compact)) facts.push("양방향 질문과 자기 이야기");
     if(facts.length){
       out.flow=`입력에서 확인되는 참여 행동은 ${facts.join(", ")}입니다. 이 밖의 이전 분위기·장소·과거 사건은 입력에 없으므로 판단 근거로 추가하지 않습니다.`;
+    }
+  }
+  // v57: when a detailed analysis concludes that the user should not send a
+  // new message and should wait for the counterpart's voluntary participation,
+  // reply cards must be empty. Action instructions are not sendable replies.
+  if(isDetail){
+    const actionText=[out.advice,out.nextAction,out.dontSend].filter(Boolean).join(" ");
+    const noNewMessage=/(?:지금|현재|당분간)[^.\n]{0,90}(?:먼저\s*연락(?:할|하지|을)?|새\s*메시지|추가\s*메시지|새\s*대화)[^.\n]{0,70}(?:아니|말|않|중단|보내지|기다)|상대(?:의|가)?[^.\n]{0,70}(?:자발적\s*연락|먼저\s*연락)[^.\n]{0,60}기다/.test(actionText);
+    if(noNewMessage){
+      out.replies=[];
+      const inputHasExplicitWait=/(?:하루|이틀|사흘|\d+\s*일|며칠|일주일|주일|시간\s*뒤|분\s*뒤)[^.\n]{0,50}(?:기다|연락|보내)/.test(compact);
+      if(!inputHasExplicitWait){
+        out.nextAction="지금은 새 메시지를 먼저 보내지 말고 상대가 스스로 연락하거나 대화를 시작하는지 확인하세요. 상대의 자발적 참여가 생기기 전에는 사용자의 선연락 횟수를 더 늘리지 마세요.";
+      }
     }
   }
   return out;
