@@ -1,1 +1,1 @@
-Run reviewed Potentia v38 patch.
+Run reviewed Potentia v38 patch - retry with corrected anchors.
