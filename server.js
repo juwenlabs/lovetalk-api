@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v35-realuser-consistency";
+const SERVER_VERSION = "2026-08-23-potentia-v36-apology-detection";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -632,7 +632,7 @@ function getDeterministicQuickAnalysis(reqBody){
     };
   }
 
-  const receivedApology=relation.includes("연애") && /(?:상대|애인)[^.\n]{0,80}(?:미안|사과)/.test(compact) && /(?:감정[^.\n]{0,30}(?:가라앉|정리)|이제[^.\n]{0,30}가라앉)/.test(compact);
+  const receivedApology=relation.includes("연애") && /(?:상대|애인)[^\n]{0,160}(?:미안|사과)/.test(compact) && /(?:감정[^\n]{0,50}(?:가라앉|정리)|이제[^\n]{0,50}가라앉)/.test(compact);
   if(receivedApology){
     return {
       meaning:"상대가 먼저 자신의 말이 심했다고 사과했고 사용자의 감정도 많이 가라앉았다는 사실이 확인됩니다. 사용자가 잘못했다고 인정했다는 정보는 없습니다.",
