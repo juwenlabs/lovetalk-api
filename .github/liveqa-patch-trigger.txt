@@ -1,1 +1,1 @@
-Trigger Potentia v31 repeated-rejection and compact PRO analysis stability fixes.
+Trigger Potentia v32 deterministic appointment, conflict, and apology quick-analysis guards.
