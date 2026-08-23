@@ -1,1 +1,1 @@
-Trigger Potentia v30 robust starter JSON recovery and safer retry behavior.
+Trigger Potentia v31 repeated-rejection and compact PRO analysis stability fixes.
