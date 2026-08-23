@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v60-fast-pro-grounding-polish";
+const SERVER_VERSION = "2026-08-23-potentia-v61-faster-pro-cache-compact";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -230,12 +230,12 @@ function recoverReplyArrayJson(text){
   return null;
 }
 async function createJsonWithRetry({model,maxTokens,content,retryMaxTokens}){
-  let ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:maxTokens,messages:[{role:"user",content}]});
+  let ai=await anthropic.messages.create({model,system:[{type:"text",text:POTENTIA_SYSTEM_PROMPT,cache_control:{type:"ephemeral"}}],max_tokens:maxTokens,messages:[{role:"user",content}]});
   try{return parseClaudeJson(ai);}catch(firstError){
     const recovered=recoverReplyArrayJson(getClaudeText(ai));
     if(recovered)return recovered;
     const retryContent=Array.isArray(content)?[...content,{type:"text",text:"\n중요: 반드시 완전하고 유효한 JSON 하나만 출력하세요. reply 3개를 모두 끝까지 닫고 코드블록과 설명은 금지합니다."}]:String(content)+"\n\n반드시 완전하고 유효한 JSON 하나만 출력하세요. reply 3개를 모두 끝까지 닫으세요.";
-    ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:retryMaxTokens||maxTokens,messages:[{role:"user",content:retryContent}]});
+    ai=await anthropic.messages.create({model,system:[{type:"text",text:POTENTIA_SYSTEM_PROMPT,cache_control:{type:"ephemeral"}}],max_tokens:retryMaxTokens||maxTokens,messages:[{role:"user",content:retryContent}]});
     try{return parseClaudeJson(ai);}catch(secondError){
       const recoveredRetry=recoverReplyArrayJson(getClaudeText(ai));
       if(recoveredRetry)return recoveredRetry;
@@ -1902,17 +1902,17 @@ async function generateAnalysisResult(reqBody){
   const isMemoryTask=isDetail && /\[PRO\s*상대별\s*AI\s*기억\s*강화\]/.test(taskMessage);
   const isMonthlyTask=isDetail && /\[PRO\s*월간\s*관계\s*리포트\]/.test(taskMessage);
   const compactProTask=isMemoryTask||isMonthlyTask;
-  const compactInstruction={type:"text",text:"\n[출력 길이 제한] 이 작업은 장기 저장/요약용입니다. 모든 필수 섹션과 reply1~3은 유지하되 각 섹션은 핵심 1~2문장만 쓰고 전체를 약 1700자 안에 끝내세요. 반복 설명은 금지하고 nextAction까지 반드시 완결하세요."};
-  const detailInstruction={type:"text",text:"\n[상세분석 출력 길이] 모든 필수 섹션과 reply1~3을 유지하되 각 섹션은 핵심 1~2문장, 각 추천문장은 1문장으로 쓰고 전체를 약 1900자 안에 끝내세요. 입력에 없는 감정·일정·사실을 만들지 말고 nextAction까지 반드시 완결하세요."};
+  const compactInstruction={type:"text",text:"\n[빠른 PRO 출력] 모든 필수 섹션과 reply1~3 마커는 유지하세요. 각 섹션은 핵심 한 문장만, reply는 짧은 한 문장과 짧은 이유만 쓰세요. 반복 설명은 금지하고 전체를 약 900자 안에 끝내며 nextAction까지 반드시 완결하세요. 입력에 없는 감정·일정·사실은 만들지 마세요."};
+  const detailInstruction={type:"text",text:"\n[빠른 상세분석 출력] 모든 필수 섹션과 reply1~3 마커는 유지하세요. 각 섹션은 핵심 한 문장만, 각 추천문장은 한 문장과 짧은 이유만 쓰세요. 전체를 약 1100자 안에 끝내고 nextAction까지 반드시 완결하세요. 입력에 없는 감정·일정·사실은 만들지 마세요."};
   const requestContent=compactProTask
     ? (Array.isArray(content)?[...content,compactInstruction]:String(content)+compactInstruction.text)
     : (isDetail ? (Array.isArray(content)?[...content,detailInstruction]:String(content)+detailInstruction.text) : content);
-  let ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?(compactProTask?1800:2100):850,messages:[{role:"user",content:requestContent}]});
+  let ai=await anthropic.messages.create({model,system:[{type:"text",text:POTENTIA_SYSTEM_PROMPT,cache_control:{type:"ephemeral"}}],max_tokens:isDetail?(compactProTask?1100:1350):850,messages:[{role:"user",content:requestContent}]});
   let parsed=parseAnalysisSectionsText(getClaudeText(ai),isDetail,selectedSituation);
   if(ai.stop_reason==="max_tokens" || !validAnalysisResult(parsed,isDetail)){
-    const retryInstruction={type:"text",text:`중요: 이전 출력이 너무 길거나 불완전했습니다. 위의 모든 [[section]]과 reply1~3을 빠짐없이 유지하되 전체를 ${compactProTask?"1500":"2200"}자 안으로 압축해 처음부터 다시 출력하세요. 각 섹션은 핵심만 쓰고 nextAction은 반드시 완결된 문장으로 끝내세요. 코드블록과 머리말은 금지합니다.`};
+    const retryInstruction={type:"text",text:`중요: 이전 출력이 불완전했습니다. 모든 [[section]]과 reply1~3 마커를 빠짐없이 유지하고 전체를 ${compactProTask?"850":"1050"}자 안으로 압축해 처음부터 다시 출력하세요. 각 섹션은 핵심 한 문장만 쓰고 nextAction은 반드시 완결하세요. 코드블록과 머리말은 금지합니다.`};
     const retryContent=Array.isArray(requestContent)?[...requestContent,retryInstruction]:String(requestContent)+retryInstruction.text;
-    ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?(compactProTask?1900:2300):1100,messages:[{role:"user",content:retryContent}]});
+    ai=await anthropic.messages.create({model,system:[{type:"text",text:POTENTIA_SYSTEM_PROMPT,cache_control:{type:"ephemeral"}}],max_tokens:isDetail?(compactProTask?1200:1450):1100,messages:[{role:"user",content:retryContent}]});
     parsed=parseAnalysisSectionsText(getClaudeText(ai),isDetail,selectedSituation);
   }
   if(ai.stop_reason==="max_tokens" && !analysisEndingLooksComplete(parsed)){
@@ -1947,7 +1947,7 @@ function parseReplyObject(raw,fallbackLabel){const text=String(raw||"").trim();t
 async function streamClaudeSections({res,model,maxTokens,content,sectionOrder,selectedSituation}){
   let fullText="";const emitted=new Set();let finished=false;
   function tryEmit(){for(let i=0;i<sectionOrder.length;i++){const name=sectionOrder[i];if(emitted.has(name))continue;const marker=`[[${name}]]`;const next=sectionOrder[i+1]||"done";const nextMarker=`[[${next}]]`;const start=fullText.indexOf(marker);let end=fullText.indexOf(nextMarker);if(start<0)continue;if(end<0&&finished&&i===sectionOrder.length-1)end=fullText.length;if(end<0||end<=start)continue;const raw=fullText.slice(start+marker.length,end).trim();if(!raw)continue;let value=raw;if(name.startsWith("reply")){const n=Number(name.replace("reply",""))||1;const labels=["가장 자연스러운 답장","조금 더 다정한 답장","조금 더 여유 있는 답장"];value=sanitizeReplyObject(parseReplyObject(raw,labels[n-1]||"추천"),selectedSituation,labels[n-1]);}sendSse(res,"section",{name,value});emitted.add(name);}}
-  const stream=anthropic.messages.stream({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:maxTokens,messages:[{role:"user",content}]});stream.on("text",t=>{fullText+=t;tryEmit();});await stream.finalMessage();finished=true;tryEmit();sendSse(res,"done",{serverVersion:SERVER_VERSION});if(!res.writableEnded)res.end();
+  const stream=anthropic.messages.stream({model,system:[{type:"text",text:POTENTIA_SYSTEM_PROMPT,cache_control:{type:"ephemeral"}}],max_tokens:maxTokens,messages:[{role:"user",content}]});stream.on("text",t=>{fullText+=t;tryEmit();});await stream.finalMessage();finished=true;tryEmit();sendSse(res,"done",{serverVersion:SERVER_VERSION});if(!res.writableEnded)res.end();
 }
 
 app.post("/api/love-analysis-stream",async(req,res)=>{
