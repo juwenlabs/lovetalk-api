@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v49-priority-boundaries";
+const SERVER_VERSION = "2026-08-23-potentia-v50-detail-completion-resilience";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -1627,20 +1627,26 @@ async function generateAnalysisResult(reqBody){
   const isMonthlyTask=isDetail && /\[PRO\s*월간\s*관계\s*리포트\]/.test(taskMessage);
   const compactProTask=isMemoryTask||isMonthlyTask;
   const compactInstruction={type:"text",text:"\n[출력 길이 제한] 이 작업은 장기 저장/요약용입니다. 모든 필수 섹션과 reply1~3은 유지하되 각 섹션은 핵심 1~2문장만 쓰고 전체를 약 1700자 안에 끝내세요. 반복 설명은 금지하고 nextAction까지 반드시 완결하세요."};
-  const requestContent=compactProTask ? (Array.isArray(content)?[...content,compactInstruction]:String(content)+compactInstruction.text) : content;
-  let ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?(compactProTask?1800:1900):850,messages:[{role:"user",content:requestContent}]});
+  const detailInstruction={type:"text",text:"\n[상세분석 출력 길이] 모든 필수 섹션과 reply1~3을 유지하되 각 섹션은 핵심 1~2문장, 각 추천문장은 1문장으로 쓰고 전체를 약 1900자 안에 끝내세요. 입력에 없는 감정·일정·사실을 만들지 말고 nextAction까지 반드시 완결하세요."};
+  const requestContent=compactProTask
+    ? (Array.isArray(content)?[...content,compactInstruction]:String(content)+compactInstruction.text)
+    : (isDetail ? (Array.isArray(content)?[...content,detailInstruction]:String(content)+detailInstruction.text) : content);
+  let ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?(compactProTask?1800:2100):850,messages:[{role:"user",content:requestContent}]});
   let parsed=parseAnalysisSectionsText(getClaudeText(ai),isDetail,selectedSituation);
   if(ai.stop_reason==="max_tokens" || !validAnalysisResult(parsed,isDetail)){
     const retryInstruction={type:"text",text:`중요: 이전 출력이 너무 길거나 불완전했습니다. 위의 모든 [[section]]과 reply1~3을 빠짐없이 유지하되 전체를 ${compactProTask?"1500":"2200"}자 안으로 압축해 처음부터 다시 출력하세요. 각 섹션은 핵심만 쓰고 nextAction은 반드시 완결된 문장으로 끝내세요. 코드블록과 머리말은 금지합니다.`};
     const retryContent=Array.isArray(requestContent)?[...requestContent,retryInstruction]:String(requestContent)+retryInstruction.text;
-    ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?(compactProTask?1900:2100):1100,messages:[{role:"user",content:retryContent}]});
+    ai=await anthropic.messages.create({model,system:POTENTIA_SYSTEM_PROMPT,max_tokens:isDetail?(compactProTask?1900:2300):1100,messages:[{role:"user",content:retryContent}]});
     parsed=parseAnalysisSectionsText(getClaudeText(ai),isDetail,selectedSituation);
   }
   if(ai.stop_reason==="max_tokens" && !analysisEndingLooksComplete(parsed)){
+    const hasDetailCore=!!(isDetail && parsed && parsed.meaning && parsed.emotion && parsed.flow && parsed.strategy && parsed.caution && parsed.advice && Array.isArray(parsed.replies) && parsed.replies.length>=3);
     if(compactProTask && validAnalysisResult(parsed,isDetail)){
       parsed.nextAction=isMemoryTask
         ? "확인된 사실과 최소 2회 이상 반복 관찰된 행동 패턴만 장기 기억에 저장하고, 감정 가설·호감 추정·조언은 저장하지 마세요."
         : "확인된 행동 변화만 월간 기록으로 남기고, 다음 달에는 상대 참여와 사용자 과투자 변화를 다시 비교하세요.";
+    }else if(hasDetailCore){
+      parsed.nextAction="확인된 사실과 상대의 실제 참여만 기준으로 다음 행동을 한 단계씩 결정하세요. 입력에 없는 감정·일정은 만들지 말고, 상대 참여가 불분명하면 사용자의 연락이나 제안을 더 늘리지 마세요.";
     }else throw new Error("AI 상세 분석이 끝까지 생성되지 않아 다시 시도해 주세요.");
   }
   if(!validAnalysisResult(parsed,isDetail)) throw new Error("AI 분석 섹션을 정상적으로 파싱하지 못했습니다.");
