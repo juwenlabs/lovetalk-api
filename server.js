@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v55-vague-meeting-user-intent";
+const SERVER_VERSION = "2026-08-23-potentia-v56-unknown-date-block-bypass";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -746,6 +746,45 @@ function getDeterministicQuickAnalysis(reqBody){
   const situation=String(reqBody?.selectedSituation||"");
   const relation=String(reqBody?.relation||"");
   const compact=msg.replace(/\s+/g," ");
+
+  // v56: a block is a channel-independent contact boundary. Do not offer a
+  // one-time DM or another-account workaround after the counterpart blocks
+  // the user on one service.
+  const blockedByCounterpart=/(?:상대(?:가|는)?[^.\n]{0,120})?(?:카카오톡|카톡|메신저)?[^.\n]{0,70}차단/.test(compact);
+  const asksBypassChannel=/(?:인스타(?:그램)?|instagram|dm|디엠|다른\s*계정|다른\s*채널|sns)[^.\n]{0,90}(?:보내|연락|물어|해도|할까)|(?:보내|연락|물어)[^.\n]{0,90}(?:인스타(?:그램)?|instagram|dm|디엠|다른\s*계정|다른\s*채널|sns)/i.test(compact);
+  if(blockedByCounterpart && asksBypassChannel){
+    return {
+      meaning:"상대가 한 채널에서 사용자를 차단했습니다. 차단되지 않은 다른 SNS나 계정으로 연락하는 것도 같은 연락 경계를 우회하는 행동입니다.",
+      emotion:"차단 이유를 알고 싶은 마음이 생길 수 있지만, 상대의 이유나 감정을 입력만으로 추정하지 않습니다.",
+      caution:"'한 번만'이라는 이유로 인스타그램 DM, 다른 계정, 지인 계정 등으로 우회 연락하지 마세요.",
+      advice:"지금은 새 메시지를 보내지 않고 차단이라는 경계를 그대로 존중하는 것이 맞습니다.",
+      nextAction:"카카오톡뿐 아니라 인스타그램·다른 계정 등 다른 채널에서도 먼저 연락하지 마세요. 상대가 스스로 다시 연락하기 전에는 추가 접촉을 만들지 마세요.",
+      replies:[]
+    };
+  }
+
+  // v56: when the counterpart proposes a concrete day but the user explicitly
+  // says they have not checked that day's availability, never accept the plan
+  // on the user's behalf or invent a 2-3 day follow-up cadence.
+  const v56Days=["월요일","화요일","수요일","목요일","금요일","토요일","일요일"];
+  for(const day of v56Days){
+    const counterpartProposedDay=new RegExp(`상대(?:가|는)?[^.\n]{0,200}${day}[^.\n]{0,65}(?:어때|가능|괜찮|될까|보자|만나)`).test(compact);
+    const userDayUnconfirmed=new RegExp(`(?:나는|내가|저는|저도|사용자)[^.\n]{0,110}${day}[^.\n]{0,70}(?:일정[^.\n]{0,25})?(?:확인[^.\n]{0,18}(?:못|안|전)|아직[^.\n]{0,25}(?:모르|미정)|모르|미정)`).test(compact);
+    if(counterpartProposedDay && userDayUnconfirmed){
+      return {
+        meaning:`상대가 ${day}을 구체적인 대안으로 제시했지만 사용자는 아직 ${day} 가능 여부를 확인하지 못했습니다.`,
+        emotion:"상대가 대안 날짜를 제시했다는 참여는 확인되지만, 사용자가 그 날짜를 수락했다는 사실은 없습니다.",
+        caution:`일정을 확인하지 않은 상태에서 '${day} 좋아요', '${day} 괜찮아요', '${day} 가능해요'처럼 사용자를 대신해 수락하지 마세요.`,
+        advice:"먼저 실제 일정을 확인한 뒤 가능한 경우에만 약속을 확정하세요. 확인 전에는 임의의 시간·장소나 며칠 뒤 재연락 같은 규칙을 만들 필요가 없습니다.",
+        nextAction:`지금은 ${day} 가능 여부를 확인하겠다고만 답하고, 실제 일정 확인이 끝난 뒤 그 사실에 맞춰 후속 답장을 보내세요.`,
+        replies:[
+          {label:"가장 자연스러운 답장",text:`${day} 일정 먼저 확인해보고 말씀드릴게요.`,reason:"상대의 제안을 받아 적되 사용자의 가능 여부를 확정하지 않습니다."},
+          {label:"조금 더 다정한 답장",text:`${day}은 제 일정 확인한 뒤 말씀드릴게요.`,reason:"긍정이나 거절을 지어내지 않고 실제 확인 단계만 전달합니다."},
+          {label:"조금 더 간결한 답장",text:`${day} 가능 여부 확인해보고 답드릴게요.`,reason:"사용자 일정이 아직 미확정이라는 사실만 짧게 전달합니다."}
+        ]
+      };
+    }
+  }
 
   // v54: explicit contact boundaries and unknown user availability outrank
   // ordinary reply generation. Do not create a personal apology after a
