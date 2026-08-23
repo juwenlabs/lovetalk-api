@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: '20'
       - name: Apply v38 patch
-        run: python .github/scripts/patch_v38_realuser.py
+        run: python .github/scripts/patch_v38_realuser_v2.py
       - name: Syntax check
         run: node --check server.js
       - name: Commit v38 to main
