@@ -1,0 +1,30 @@
+name: patch-v53-single-question-preference-starter
+on:
+  pull_request:
+    branches: ["main"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.pull_request.head.ref == 'agent/trigger-v53-single-question-preference-starter'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply v53 patch
+        run: python scripts/patch_v53_single_question_preference_starter.py
+      - name: Syntax check
+        run: node --check server.js
+      - name: Commit v53 to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.js
+          git diff --cached --quiet && exit 0
+          git commit -m "Apply Potentia v53 single-question preference starter"
+          git push origin HEAD:main
