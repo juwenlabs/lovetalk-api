@@ -1,0 +1,1 @@
+Trigger Potentia v45 detail role-binding patch. Do not merge this PR.
