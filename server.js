@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-23-potentia-v52-grounded-preference-starter";
+const SERVER_VERSION = "2026-08-23-potentia-v53-single-question-preference-starter";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -420,7 +420,7 @@ async function generateStarterResult(reqBody){
           guard:null,
           result:{replies:[
             {label:"자연스럽게",text:`${preference} 좋아한다고 하셨죠. ${when} 괜찮으시면 만나서 그 얘기 조금 더 나눌까요?`,reason:"상대가 직접 말한 취향과 사용자가 실제로 가능하다고 밝힌 일정만 사용합니다."},
-            {label:"조금 더 가볍게",text:`${when} 시간 괜찮으세요? ${preference} 좋아한다고 하신 얘기도 만나서 이어가볼까요?`,reason:"없는 장소나 공통 취향을 만들지 않고 확인된 취향을 만남 제안의 맥락으로 씁니다."},
+            {label:"조금 더 가볍게",text:`${when} 괜찮으시면 ${preference} 좋아한다고 하신 얘기도 만나서 이어가볼까요?`,reason:"없는 장소나 공통 취향을 만들지 않고 확인된 취향을 만남 제안의 맥락으로 씁니다."},
             {label:"간결하게",text:`${preference} 좋아한다고 하신 거 기억하고 있어요. ${when} 괜찮으시면 잠깐 만날까요?`,reason:"생각났다는 명분이나 날씨·장소를 새로 만들지 않고 두 확인 사실만 사용합니다."}
           ]},
           advanced:true
