@@ -1,0 +1,34 @@
+name: patch-v78-schedule-question-guard
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Add v78 schedule question guard workflow'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply v78 patch
+        run: python .github/scripts/patch_v78_schedule_question_guard.py
+      - name: Syntax check
+        run: node --check server.js
+      - name: Commit v78 and cleanup workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/patch-v78-schedule-question-guard.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.js .github/workflows/patch-v78-schedule-question-guard.yml
+          git commit -m "Apply Potentia v78 OpenAI schedule guard"
+          git push origin HEAD:main
