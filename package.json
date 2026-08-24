@@ -2,7 +2,7 @@
   "name": "lovetalk-api",
   "version": "1.0.0",
   "main": "server.js",
-  "scripts": {"start": "node scripts/patch_v79_reply_quality_gate.js && node server.js"},
+  "scripts": {"start": "node scripts/patch_v79_reply_quality_gate_fixed.js && node server.js"},
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
