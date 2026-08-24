@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-24-potentia-v75-reply-detail-mode";
+const SERVER_VERSION = "2026-08-24-potentia-v76-reply-detail-safety";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -678,6 +678,17 @@ function applyAnalysisPolicyGuards(parsed,reqBody,isDetail){
   const msg=String(reqBody?.message||"");
   const situation=String(reqBody?.selectedSituation||"");
   const compact=msg.replace(/\s+/g," ");
+  const replyDetailRequested=!!reqBody?.replyDetailMode;
+  const explicitNoContactBoundary=/(?:차단(?:했|당했|됐|되어|함)|더\s*이상\s*연락(?:하지|\s*하지\s*말|하지마)|연락\s*(?:하지\s*말|하지마|중단))/.test(compact);
+  if(isDetail && replyDetailRequested && explicitNoContactBoundary){
+    out.replies=[];
+    out.confidence="높음";
+    out.caution="상대가 연락 중단이나 차단 의사를 명확히 한 경우 다른 채널로 우회하거나 이유를 묻기 위해 다시 연락하지 마세요.";
+    out.dontSend="마지막으로 한 번만, 이유만 알려줘처럼 추가 연락을 이어가는 문장은 보내지 마세요.";
+    out.advice="지금은 답장을 만드는 것보다 상대의 명확한 연락 경계를 존중하고 연락을 멈추는 것이 맞습니다.";
+    out.nextAction="새 메시지를 보내지 말고 연락을 중단하세요.";
+    return out;
+  }
 
   // Potentia no-reply rule: if the user already waited about 3 days and has not
   // sent a follow-up, the next action is ONE low-pressure check now, not 3 more days.
@@ -794,7 +805,7 @@ function applyAnalysisPolicyGuards(parsed,reqBody,isDetail){
     });
     const isNamedProTask=isProConfession||isProDate||isProRisk||isProMonthly||isProMemory;
     const looksLikeDirectDialogue=/\n/.test(msg)||/(?:상대|나|저|사용자)\s*[:：]/.test(msg)||/["“”]/.test(msg);
-    const isReplyDetailRequest=!!reqBody?.replyDetailMode;
+    const isReplyDetailRequest=replyDetailRequested;
     if(!isNamedProTask && !looksLikeDirectDialogue && !isReplyDetailRequest){
       out.replies=[];
       out.advice="현재 입력은 관계 상황 요약이므로 특정 답장 문장을 만들기보다 확인된 참여 행동만 기준으로 보는 것이 정확합니다. 실제 답장 추천이 필요하면 최근 대화 문장을 그대로 입력하세요.";
