@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-24-potentia-v74-three-replies";
+const SERVER_VERSION = "2026-08-24-potentia-v75-reply-detail-mode";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -794,7 +794,8 @@ function applyAnalysisPolicyGuards(parsed,reqBody,isDetail){
     });
     const isNamedProTask=isProConfession||isProDate||isProRisk||isProMonthly||isProMemory;
     const looksLikeDirectDialogue=/\n/.test(msg)||/(?:상대|나|저|사용자)\s*[:：]/.test(msg)||/["“”]/.test(msg);
-    if(!isNamedProTask && !looksLikeDirectDialogue){
+    const isReplyDetailRequest=!!reqBody?.replyDetailMode;
+    if(!isNamedProTask && !looksLikeDirectDialogue && !isReplyDetailRequest){
       out.replies=[];
       out.advice="현재 입력은 관계 상황 요약이므로 특정 답장 문장을 만들기보다 확인된 참여 행동만 기준으로 보는 것이 정확합니다. 실제 답장 추천이 필요하면 최근 대화 문장을 그대로 입력하세요.";
       out.nextAction="현재 정보만으로 특정 연락 시점이나 답장을 새로 만들지 마세요. 실제 최근 대화 문장이 있을 때 입력된 사실만 사용해 다음 행동을 정하세요.";
