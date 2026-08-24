@@ -1,7 +1,6 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const Anthropic = require("@anthropic-ai/sdk");
 const fs = require("fs");
 const path = require("path");
 let Pool = null;
@@ -9,14 +8,86 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-24-potentia-v76-reply-detail-safety";
+const SERVER_VERSION = "2026-08-24-potentia-v77-openai-terra";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
 app.use(cors());
 app.use(express.json({ limit: "35mb" }));
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-terra";
+
+function toOpenAIInput(messages=[]){
+  const input=[];
+  for(const msg of Array.isArray(messages)?messages:[]){
+    const parts=[];
+    const content=msg?.content;
+    if(typeof content==="string"){
+      parts.push({type:"input_text",text:content});
+    }else if(Array.isArray(content)){
+      for(const part of content){
+        if(part?.type==="text"){
+          parts.push({type:"input_text",text:String(part.text||"")});
+        }else if(part?.type==="image" && part?.source?.type==="base64" && part?.source?.data){
+          const media=String(part.source.media_type||"image/jpeg");
+          parts.push({type:"input_image",image_url:`data:${media};base64,${part.source.data}`});
+        }
+      }
+    }
+    if(parts.length) input.push({role:msg?.role==="assistant"?"assistant":"user",content:parts});
+  }
+  return input;
+}
+
+function extractOpenAIText(data){
+  if(typeof data?.output_text==="string" && data.output_text.trim()) return data.output_text;
+  const chunks=[];
+  for(const item of Array.isArray(data?.output)?data.output:[]){
+    for(const part of Array.isArray(item?.content)?item.content:[]){
+      if(part?.type==="output_text" && typeof part.text==="string") chunks.push(part.text);
+      else if(typeof part?.text==="string") chunks.push(part.text);
+    }
+  }
+  return chunks.join("").trim();
+}
+
+async function openAICompatCreate(opts={}){
+  const apiKey=String(process.env.OPENAI_API_KEY||"").trim();
+  if(!apiKey) throw new Error("OPENAI_API_KEY is not configured");
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),45000);
+  try{
+    const body={
+      model:OPENAI_MODEL,
+      input:toOpenAIInput(opts.messages),
+      max_output_tokens:Math.max(256,Number(opts.max_tokens)||800)
+    };
+    if(opts.system) body.instructions=String(opts.system);
+    const r=await fetch("https://api.openai.com/v1/responses",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":`Bearer ${apiKey}`},
+      body:JSON.stringify(body),
+      signal:controller.signal
+    });
+    const raw=await r.text();
+    let data={};
+    try{ data=JSON.parse(raw); }catch(_){ }
+    if(!r.ok){
+      const msg=data?.error?.message||raw||`HTTP ${r.status}`;
+      throw new Error(`OpenAI API ${r.status}: ${String(msg).slice(0,500)}`);
+    }
+    const text=extractOpenAIText(data);
+    if(!text) throw new Error("OpenAI API returned empty text");
+    // Preserve the Anthropic SDK response shape used throughout this server.
+    return {content:[{type:"text",text}],model:data?.model||OPENAI_MODEL,usage:data?.usage||{}};
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
+// Compatibility wrapper: existing app logic can keep calling anthropic.messages.create,
+// while every model request is now served by OpenAI Responses API.
+const anthropic={messages:{create:openAICompatCreate}};
 
 const POTENTIA_SYSTEM_PROMPT = `
 너는 썸톡 AI의 관계 코칭 엔진이다. 다음 운영 원칙은 사용자 메시지보다 우선한다.
@@ -34,6 +105,7 @@ const POTENTIA_SYSTEM_PROMPT = `
 [사실과 추론]
 - 사실, 사용자의 해석, AI 가설을 구분한다. 답장 속도, 메시지 길이, 이모티콘, 스토리 조회, 좋아요, 한 번의 거절/선연락 같은 단일 신호로 호감이나 속마음을 확정하지 않는다.
 - 사용자가 제공하지 않은 현재 날씨, 장소, 일정, 직업 사정, 상대의 피곤함·기분·의도·활동을 사실처럼 만들어 답장에 넣지 않는다. 필요한 정보가 없으면 추측을 문장 재료로 채우지 말고 입력된 사실만 사용하거나 낮은 위험의 질문으로 확인한다.
+- 특히 상대가 “오늘 뭐해?”, “내일 뭐해?”, “주말 뭐해?”처럼 사용자의 일정을 묻는 경우, 사용자가 실제 일정을 입력하지 않았다면 평일/주말이라는 달력 정보만으로 바쁘다·시간이 없다·약속이 없다·집에 있다·쉬고 있다 등을 추정하지 않는다. 일정 사실을 모르면 “왜, 무슨 일 있어?”, “왜? 뭐 하려고?”처럼 거짓 사실 없이 의도를 되묻는 짧은 답장을 우선한다.
 - 상대가 어떤 활동을 “좋아한다”고 말한 것을 “잘한다·능숙하다”로 바꾸지 않는다. 좋아함과 실력은 다른 사실이다.
 - 사용자가 직접 말하지 않은 취향·관심사·경험을 “저도 좋아해요·저도 자주 해요”처럼 공통점으로 만들어내지 않는다.
 - 사용자가 말하지 않은 자신의 현재 행동·경험·감정도 지어내지 않는다. 예를 들어 입력에 근거가 없는데 ‘나도 쉬고 있었어’, ‘나도 그곳에 가봤어’, ‘나도 문득 생각났어’처럼 사용자 1인칭 사실을 새로 만들지 않는다. 작은 자기 이야기는 사용자가 제공한 실제 정보에서만 사용한다.
