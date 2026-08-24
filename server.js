@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-24-potentia-v73-tiered-replies";
+const SERVER_VERSION = "2026-08-24-potentia-v74-three-replies";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -467,7 +467,7 @@ async function generateStarterResult(reqBody){
   }
 
   const normalizedStarterGoal=/밀당|일부러.{0,10}(늦|기다)|답장 텀/.test(String(starterGoal||"")+" "+context) ? "조작 없이 자연스럽게 연락하기" : starterGoal;
-  const desiredStarterReplies=advanced?3:1;
+  const desiredStarterReplies=3;
   const prompt=`
 사용자가 지금 그 사람에게 먼저 보낼 카카오톡/DM 첫 메시지 ${desiredStarterReplies}개를 만들어주세요. 이 작업은 답장 추천이 아닙니다.
 [그 사람] ${nickname||"새로운/임의 상대"}
@@ -494,9 +494,7 @@ ${advanced ? `- 이것은 PRO 고급 먼저 보내기 추천입니다.
 - 세 문장은 각각 가장 자연스러운 접근, 관계 진전형, 부담 최소화형처럼 역할이 겹치지 않게 만드세요.
 - 각 reason은 왜 적합한지 짧은 1문장으로만 설명하세요.` : ""}
 JSON만 출력하세요.
-${advanced
-  ? '{"replies":[{"label":"자연스럽게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"다정하게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"센스 있게","text":"먼저 보낼 메시지","reason":"이유 1문장"}]}'
-  : '{"replies":[{"label":"자연스럽게","text":"가장 자연스러운 먼저 보낼 메시지","reason":"이유 1문장"}]}' }
+'{"replies":[{"label":"자연스럽게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"다정하게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"센스 있게","text":"먼저 보낼 메시지","reason":"이유 1문장"}]}
 `;
   let parsed=await createFastStarterJson({content:prompt,advanced:!!advanced});
   if(!Array.isArray(parsed.replies)||parsed.replies.length<desiredStarterReplies) throw new Error(`AI가 추천 문장 ${desiredStarterReplies}개를 반환하지 않았습니다.`);
@@ -509,7 +507,7 @@ app.post("/api/starter", async (req,res)=>{
   try{
     const {guard,result,advanced}=await generateStarterResult(req.body||{});
     if(guard) return res.json({...guard,advanced,serverVersion:SERVER_VERSION});
-    const starterLimit=advanced?3:1;
+    const starterLimit=3;
     const tieredResult={...result,replies:Array.isArray(result?.replies)?result.replies.slice(0,starterLimit):[]};
     res.json({...tieredResult,advanced,serverVersion:SERVER_VERSION});
   }catch(error){console.error("선톡 API 오류:",error);res.status(500).json({error:"선톡 추천을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});}
@@ -2188,7 +2186,8 @@ function getInstantReplyCoreResult(reqBody){
         nextAction:"아래 문장 중 하나로 짧게 답하고 이후 실제 반응을 보세요.",
         replies:[
           {label:"가장 자연스러운 답장",text:"오늘 바쁘셨군요. 지금은 좀 괜찮으세요?",reason:"상대가 직접 말한 바쁜 하루만 반영합니다."},
-          {label:"다른 느낌의 답장",text:"이제 집에 오셨군요. 오늘 하루는 어떠셨어요?",reason:"집에 왔다는 확인 사실에서 질문 하나로 이어갑니다."}
+          {label:"다른 느낌의 답장",text:"이제 집에 오셨군요. 오늘 하루는 어떠셨어요?",reason:"집에 왔다는 확인 사실에서 질문 하나로 이어갑니다."},
+          {label:"조금 더 가볍게",text:"오늘 많이 바쁘셨네요. 지금은 좀 여유가 생기셨어요?",reason:"상대가 말한 바쁜 하루와 귀가 사실만 사용합니다."}
         ]
       };
     }
@@ -2245,10 +2244,10 @@ async function generateCompactReplyAnalysis(reqBody){
   const selectedSituation=String(reqBody?.selectedSituation||"");
   const recentMemory=String(reqBody?.recentMemory||"").slice(0,700);
   const taskData=`[관계] ${relation}\n[사용자 입력] ${message}\n[톤] ${tone}\n[선택 상황] ${selectedSituation||"없음"}\n[최근 기억] ${recentMemory||"없음"}`;
-  const desiredReplyCount=isDetail?3:1;
+  const desiredReplyCount=3;
   const prompt=isDetail
     ? `${taskData}\n\n상대 반응과 흐름을 사실 중심으로 짧게 분석하고 실제 답장 3개를 추천하세요. 한 번의 일상 공유·짧은 답장·질문만으로 호감, 관심, 숨은 마음, 대화 의욕을 추정하지 마세요. 바빴다는 말은 피곤하다는 뜻으로 바꾸지 마세요. 입력에 없는 감정·일정·장소·활동·과거 사건·미래 약속·사용자의 경험을 만들지 마세요. 존댓말 대화면 존댓말을 유지하세요. JSON만 출력: {"meaning":"핵심 1문장","signal":"상대 반응과 정보 한계 1문장","action":"지금 할 행동 1문장","replies":[{"label":"자연스럽게","text":"짧은 답장","reason":"짧은 이유"},{"label":"다른 느낌","text":"짧은 답장","reason":"짧은 이유"},{"label":"조금 더 여유 있게","text":"짧은 답장","reason":"짧은 이유"}]}`
-    : `${taskData}\n\n지금 답장에 필요한 핵심만 1문장으로 판단하고 실제 답장 1개를 추천하세요. 한 번의 일상 공유·짧은 답장만으로 호감, 관심, 숨은 마음, 대화 의욕을 추정하지 마세요. 바빴다는 말은 피곤하다는 뜻으로 바꾸지 마세요. 입력에 없는 감정·일정·장소·활동·과거 사건·미래 약속·사용자의 경험을 만들지 마세요. 존댓말 대화면 존댓말을 유지하세요. JSON만 출력: {"meaning":"핵심 1문장","action":"한 줄 조언","replies":[{"label":"자연스럽게","text":"짧은 답장","reason":"짧은 이유"}]}`;
+    : `${taskData}\n\n지금 답장에 필요한 핵심만 1문장으로 판단하고 실제 답장 3개를 추천하세요. 한 번의 일상 공유·짧은 답장만으로 호감, 관심, 숨은 마음, 대화 의욕을 추정하지 마세요. 바빴다는 말은 피곤하다는 뜻으로 바꾸지 마세요. 입력에 없는 감정·일정·장소·활동·과거 사건·미래 약속·사용자의 경험을 만들지 마세요. 존댓말 대화면 존댓말을 유지하세요. JSON만 출력: {"meaning":"핵심 1문장","action":"한 줄 조언","replies":[{"label":"자연스럽게","text":"짧은 답장","reason":"짧은 이유"},{"label":"다정하게","text":"짧은 답장","reason":"짧은 이유"},{"label":"조금 더 여유 있게","text":"짧은 답장","reason":"짧은 이유"}]}`;
   const content=[{type:"text",text:prompt}];
   const allowed=["image/jpeg","image/png","image/webp"];
   const imageList=Array.isArray(reqBody?.images)&&reqBody.images.length?reqBody.images.slice(0,8):(reqBody?.image?.data?[reqBody.image]:[]);
@@ -2264,7 +2263,7 @@ async function generateCompactReplyAnalysis(reqBody){
     return parseClaudeJson(ai);
   }
   let raw;
-  try{raw=await run(isDetail?430:190);}catch(_){raw=await run(isDetail?560:290,"JSON을 완전하게 닫아 더 짧게 다시 출력하세요.");}
+  try{raw=await run(isDetail?430:360);}catch(_){raw=await run(isDetail?560:480,"JSON을 완전하게 닫아 더 짧게 다시 출력하세요.");}
   const meaning=String(raw?.meaning||"").trim();
   const action=String(raw?.action||"").trim();
   const signal=String(raw?.signal||"").trim();
@@ -2366,7 +2365,7 @@ function applyTierReplyLimit(parsed,reqBody){
   if(!parsed||typeof parsed!=="object") return parsed;
   if(!Array.isArray(parsed.replies)) return parsed;
   const paid=!!reqBody?.advanced || String(reqBody?.mode||"")==="detail";
-  return {...parsed,replies:parsed.replies.slice(0,paid?3:1)};
+  return {...parsed,replies:parsed.replies.slice(0,3)};
 }
 
 app.post("/api/love-analysis", async (req,res)=>{
@@ -2392,7 +2391,7 @@ app.post("/api/love-analysis-stream",async(req,res)=>{
     const generated=await generateAnalysisResult(req.body||{});
     const isDetail=generated.isDetail;
     const parsed=applyTierReplyLimit(generated.parsed,req.body||{});
-    const order=isDetail?["meaning","confidence","emotion","flow","strategy","caution","dontSend","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","advice","nextAction"];
+    const order=isDetail?["meaning","confidence","emotion","flow","strategy","caution","dontSend","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","reply2","reply3","advice","nextAction"];
     for(const name of order){
       let value;
       if(name.startsWith("reply")){
@@ -2414,7 +2413,7 @@ app.post("/api/starter-stream",async(req,res)=>{
       sendSse(res,"guard",guard);
     }else{
       const replies=Array.isArray(result?.replies)?result.replies:[];
-      const starterLimit=req.body?.advanced?3:1;
+      const starterLimit=3;
       replies.slice(0,starterLimit).forEach((value,i)=>sendSse(res,"section",{name:`reply${i+1}`,value}));
     }
     sendSse(res,"done",{serverVersion:SERVER_VERSION});
