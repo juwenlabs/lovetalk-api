@@ -9,7 +9,7 @@ try { ({ Pool } = require("pg")); } catch (_) {}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = "2026-08-24-potentia-v72-grounded-detail-reply";
+const SERVER_VERSION = "2026-08-24-potentia-v73-tiered-replies";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
@@ -467,8 +467,9 @@ async function generateStarterResult(reqBody){
   }
 
   const normalizedStarterGoal=/밀당|일부러.{0,10}(늦|기다)|답장 텀/.test(String(starterGoal||"")+" "+context) ? "조작 없이 자연스럽게 연락하기" : starterGoal;
+  const desiredStarterReplies=advanced?3:1;
   const prompt=`
-사용자가 지금 그 사람에게 먼저 보낼 카카오톡/DM 첫 메시지 3개를 만들어주세요. 이 작업은 답장 추천이 아닙니다.
+사용자가 지금 그 사람에게 먼저 보낼 카카오톡/DM 첫 메시지 ${desiredStarterReplies}개를 만들어주세요. 이 작업은 답장 추천이 아닙니다.
 [그 사람] ${nickname||"새로운/임의 상대"}
 [현재 관계] ${relation||"애매한 관계"}
 [오늘의 목표] ${normalizedStarterGoal||"부담 없이 먼저 연락하기"}
@@ -482,7 +483,7 @@ ${situationRules(selectedSituation)}
 - 사용자가 지금 먼저 보내는 말만 작성하세요.
 - 최근 상황은 상대가 방금 보낸 메시지가 아닙니다.
 - '응','웅','나도','그래'처럼 답장처럼 시작하지 마세요.
-- 정보가 부족해도 질문하지 말고 바로 3개를 작성하세요.
+- 정보가 부족해도 추가 질문하지 말고 바로 ${desiredStarterReplies}개를 작성하세요.
 - 관계 단계보다 앞서는 연락, 재촉, 추가 설득, 우회 연락은 만들지 마세요.
 - 존댓말과 반말을 한 문장 안에서 섞지 마세요.
 - 사용자가 직접 말하지 않은 자신의 감정(좋았어요·반가웠어요·기대돼요·생각났어요)이나 상대의 현재 상태(쉬고 있다·피곤하다·바쁠 것이다)를 사실처럼 만들어내지 마세요.
@@ -493,11 +494,13 @@ ${advanced ? `- 이것은 PRO 고급 먼저 보내기 추천입니다.
 - 세 문장은 각각 가장 자연스러운 접근, 관계 진전형, 부담 최소화형처럼 역할이 겹치지 않게 만드세요.
 - 각 reason은 왜 적합한지 짧은 1문장으로만 설명하세요.` : ""}
 JSON만 출력하세요.
-{"replies":[{"label":"자연스럽게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"다정하게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"센스 있게","text":"먼저 보낼 메시지","reason":"이유 1문장"}]}
+${advanced
+  ? '{"replies":[{"label":"자연스럽게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"다정하게","text":"먼저 보낼 메시지","reason":"이유 1문장"},{"label":"센스 있게","text":"먼저 보낼 메시지","reason":"이유 1문장"}]}'
+  : '{"replies":[{"label":"자연스럽게","text":"가장 자연스러운 먼저 보낼 메시지","reason":"이유 1문장"}]}' }
 `;
   let parsed=await createFastStarterJson({content:prompt,advanced:!!advanced});
-  if(!Array.isArray(parsed.replies)||parsed.replies.length<3) throw new Error("AI가 추천 문장 3개를 반환하지 않았습니다.");
-  parsed.replies=parsed.replies.slice(0,3).map((x,i)=>sanitizeReplyObject(x,selectedSituation,["자연스럽게","다정하게","센스 있게"][i]));
+  if(!Array.isArray(parsed.replies)||parsed.replies.length<desiredStarterReplies) throw new Error(`AI가 추천 문장 ${desiredStarterReplies}개를 반환하지 않았습니다.`);
+  parsed.replies=parsed.replies.slice(0,desiredStarterReplies).map((x,i)=>sanitizeReplyObject(x,selectedSituation,["자연스럽게","다정하게","센스 있게"][i]));
   parsed=applyStarterPolicyGuards(parsed,reqBody||{});
   return {guard:null,result:parsed,advanced:!!advanced};
 }
@@ -506,7 +509,9 @@ app.post("/api/starter", async (req,res)=>{
   try{
     const {guard,result,advanced}=await generateStarterResult(req.body||{});
     if(guard) return res.json({...guard,advanced,serverVersion:SERVER_VERSION});
-    res.json({...result,advanced,serverVersion:SERVER_VERSION});
+    const starterLimit=advanced?3:1;
+    const tieredResult={...result,replies:Array.isArray(result?.replies)?result.replies.slice(0,starterLimit):[]};
+    res.json({...tieredResult,advanced,serverVersion:SERVER_VERSION});
   }catch(error){console.error("선톡 API 오류:",error);res.status(500).json({error:"선톡 추천을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});}
 });
 
@@ -2204,7 +2209,8 @@ function getInstantReplyCoreResult(reqBody){
         nextAction:"아래 문장 중 하나로 상대의 이야기에 반응하고, 사용자 자신의 하루를 말하고 싶다면 실제 있었던 내용만 직접 덧붙이세요.",
         replies:[
           {label:"가장 자연스러운 답장",text:"오늘 많이 바쁘셨군요. 어떤 일 때문에 바쁘셨어요?",reason:"상대가 직접 말한 바쁜 하루만 사용하고 사용자의 하루는 만들지 않습니다."},
-          {label:"다른 느낌의 답장",text:"이제 집에 오셨군요. 오늘 하루는 어떠셨어요?",reason:"확인된 귀가 상황에서 질문 하나로 자연스럽게 이어갑니다."}
+          {label:"다른 느낌의 답장",text:"이제 집에 오셨군요. 오늘 하루는 어떠셨어요?",reason:"확인된 귀가 상황에서 질문 하나로 자연스럽게 이어갑니다."},
+          {label:"조금 더 가볍게",text:"오늘 많이 바쁘셨네요. 이제 좀 여유가 생기셨어요?",reason:"상대가 말한 바쁜 하루와 귀가 사실만 사용합니다."}
         ]
       };
     }
@@ -2239,9 +2245,10 @@ async function generateCompactReplyAnalysis(reqBody){
   const selectedSituation=String(reqBody?.selectedSituation||"");
   const recentMemory=String(reqBody?.recentMemory||"").slice(0,700);
   const taskData=`[관계] ${relation}\n[사용자 입력] ${message}\n[톤] ${tone}\n[선택 상황] ${selectedSituation||"없음"}\n[최근 기억] ${recentMemory||"없음"}`;
+  const desiredReplyCount=isDetail?3:1;
   const prompt=isDetail
-    ? `${taskData}\n\n상대 반응과 흐름을 사실 중심으로 짧게 분석하고 실제 답장 2개를 추천하세요. 한 번의 일상 공유·짧은 답장·질문만으로 호감, 관심, 숨은 마음, 대화 의욕을 추정하지 마세요. 바빴다는 말은 피곤하다는 뜻으로 바꾸지 마세요. 입력에 없는 감정·일정·장소·활동·과거 사건·미래 약속·사용자의 경험을 만들지 마세요. 존댓말 대화면 존댓말을 유지하세요. JSON만 출력: {"meaning":"핵심 1문장","signal":"상대 반응과 정보 한계 1문장","action":"지금 할 행동 1문장","replies":[{"label":"자연스럽게","text":"짧은 답장","reason":"짧은 이유"},{"label":"다른 느낌","text":"짧은 답장","reason":"짧은 이유"}]}`
-    : `${taskData}\n\n지금 답장에 필요한 핵심만 1문장으로 판단하고 실제 답장 2개를 추천하세요. 한 번의 일상 공유·짧은 답장만으로 호감, 관심, 숨은 마음, 대화 의욕을 추정하지 마세요. 바빴다는 말은 피곤하다는 뜻으로 바꾸지 마세요. 입력에 없는 감정·일정·장소·활동·과거 사건·미래 약속·사용자의 경험을 만들지 마세요. 존댓말 대화면 존댓말을 유지하세요. JSON만 출력: {"meaning":"핵심 1문장","action":"한 줄 조언","replies":[{"label":"자연스럽게","text":"짧은 답장","reason":"짧은 이유"},{"label":"다른 느낌","text":"짧은 답장","reason":"짧은 이유"}]}`;
+    ? `${taskData}\n\n상대 반응과 흐름을 사실 중심으로 짧게 분석하고 실제 답장 3개를 추천하세요. 한 번의 일상 공유·짧은 답장·질문만으로 호감, 관심, 숨은 마음, 대화 의욕을 추정하지 마세요. 바빴다는 말은 피곤하다는 뜻으로 바꾸지 마세요. 입력에 없는 감정·일정·장소·활동·과거 사건·미래 약속·사용자의 경험을 만들지 마세요. 존댓말 대화면 존댓말을 유지하세요. JSON만 출력: {"meaning":"핵심 1문장","signal":"상대 반응과 정보 한계 1문장","action":"지금 할 행동 1문장","replies":[{"label":"자연스럽게","text":"짧은 답장","reason":"짧은 이유"},{"label":"다른 느낌","text":"짧은 답장","reason":"짧은 이유"},{"label":"조금 더 여유 있게","text":"짧은 답장","reason":"짧은 이유"}]}`
+    : `${taskData}\n\n지금 답장에 필요한 핵심만 1문장으로 판단하고 실제 답장 1개를 추천하세요. 한 번의 일상 공유·짧은 답장만으로 호감, 관심, 숨은 마음, 대화 의욕을 추정하지 마세요. 바빴다는 말은 피곤하다는 뜻으로 바꾸지 마세요. 입력에 없는 감정·일정·장소·활동·과거 사건·미래 약속·사용자의 경험을 만들지 마세요. 존댓말 대화면 존댓말을 유지하세요. JSON만 출력: {"meaning":"핵심 1문장","action":"한 줄 조언","replies":[{"label":"자연스럽게","text":"짧은 답장","reason":"짧은 이유"}]}`;
   const content=[{type:"text",text:prompt}];
   const allowed=["image/jpeg","image/png","image/webp"];
   const imageList=Array.isArray(reqBody?.images)&&reqBody.images.length?reqBody.images.slice(0,8):(reqBody?.image?.data?[reqBody.image]:[]);
@@ -2257,7 +2264,7 @@ async function generateCompactReplyAnalysis(reqBody){
     return parseClaudeJson(ai);
   }
   let raw;
-  try{raw=await run(isDetail?320:260);}catch(_){raw=await run(isDetail?440:370,"JSON을 완전하게 닫아 더 짧게 다시 출력하세요.");}
+  try{raw=await run(isDetail?430:190);}catch(_){raw=await run(isDetail?560:290,"JSON을 완전하게 닫아 더 짧게 다시 출력하세요.");}
   const meaning=String(raw?.meaning||"").trim();
   const action=String(raw?.action||"").trim();
   const signal=String(raw?.signal||"").trim();
@@ -2274,8 +2281,9 @@ async function generateCompactReplyAnalysis(reqBody){
     replies:[]
   };
   const list=Array.isArray(raw?.replies)?raw.replies:[];
-  out.replies=list.slice(0,2).map((x,i)=>sanitizeReplyObject(x,selectedSituation,["가장 자연스러운 답장","다른 느낌의 답장"][i]));
-  if(!meaning||!action||out.replies.length<2||(isDetail&&!signal)) throw new Error("빠른 답장 분석 결과가 불완전합니다.");
+  const replyLabels=["가장 자연스러운 답장","다른 느낌의 답장","조금 더 여유 있는 답장"];
+  out.replies=list.slice(0,desiredReplyCount).map((x,i)=>sanitizeReplyObject(x,selectedSituation,replyLabels[i]));
+  if(!meaning||!action||out.replies.length<desiredReplyCount||(isDetail&&!signal)) throw new Error("빠른 답장 분석 결과가 불완전합니다.");
   out=applyAnalysisPolicyGuards(out,reqBody||{},isDetail);
   if(Array.isArray(out.replies)){
     const inputHasUserFact=/(?:나는|내가|저는|저도|나도|사용자)[^.\n]{0,100}(?:했|갔|왔|봤|먹|마셨|좋아|싫어|가능|어려|바빴|쉬었|일했|운동|공부)/.test(message);
@@ -2283,7 +2291,7 @@ async function generateCompactReplyAnalysis(reqBody){
       const inventedSelf=/(?:^|[.!?]\s*)(?:저는|저도|나는|나도|내가)\s*[^?]{2,80}(?:했|왔|갔|봤|먹|마셨|바빴|쉬었|좋아|싫어)/;
       out.replies=out.replies.filter(x=>!inventedSelf.test(String(x?.text||"")));
     }
-    out.replies=out.replies.slice(0,2);
+    out.replies=out.replies.slice(0,desiredReplyCount);
   }
   return out;
 }
@@ -2354,10 +2362,18 @@ async function generateAnalysisResult(reqBody){
   return {parsed,isDetail};
 }
 
+function applyTierReplyLimit(parsed,reqBody){
+  if(!parsed||typeof parsed!=="object") return parsed;
+  if(!Array.isArray(parsed.replies)) return parsed;
+  const paid=!!reqBody?.advanced || String(reqBody?.mode||"")==="detail";
+  return {...parsed,replies:parsed.replies.slice(0,paid?3:1)};
+}
+
 app.post("/api/love-analysis", async (req,res)=>{
   try{
     const {parsed}=await generateAnalysisResult(req.body||{});
-    res.json({...parsed,serverVersion:SERVER_VERSION});
+    const tiered=applyTierReplyLimit(parsed,req.body||{});
+    res.json({...tiered,serverVersion:SERVER_VERSION});
   }catch(error){console.error("Claude API 오류:",error);res.status(error?.statusCode||500).json({error:"AI 분석을 생성하지 못했습니다.",detail:error?.message||"알 수 없는 오류",serverVersion:SERVER_VERSION});}
 });
 
@@ -2373,8 +2389,10 @@ async function streamClaudeSections({res,model,maxTokens,content,sectionOrder,se
 app.post("/api/love-analysis-stream",async(req,res)=>{
   try{
     setStreamHeaders(res);
-    const {parsed,isDetail}=await generateAnalysisResult(req.body||{});
-    const order=isDetail?["meaning","confidence","emotion","flow","strategy","caution","dontSend","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","reply2","reply3","advice","nextAction"];
+    const generated=await generateAnalysisResult(req.body||{});
+    const isDetail=generated.isDetail;
+    const parsed=applyTierReplyLimit(generated.parsed,req.body||{});
+    const order=isDetail?["meaning","confidence","emotion","flow","strategy","caution","dontSend","reply1","reply2","reply3","advice","nextAction"]:["meaning","emotion","caution","reply1","advice","nextAction"];
     for(const name of order){
       let value;
       if(name.startsWith("reply")){
@@ -2396,7 +2414,8 @@ app.post("/api/starter-stream",async(req,res)=>{
       sendSse(res,"guard",guard);
     }else{
       const replies=Array.isArray(result?.replies)?result.replies:[];
-      replies.slice(0,3).forEach((value,i)=>sendSse(res,"section",{name:`reply${i+1}`,value}));
+      const starterLimit=req.body?.advanced?3:1;
+      replies.slice(0,starterLimit).forEach((value,i)=>sendSse(res,"section",{name:`reply${i+1}`,value}));
     }
     sendSse(res,"done",{serverVersion:SERVER_VERSION});
     if(!res.writableEnded)res.end();
