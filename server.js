@@ -12,6 +12,8 @@ const SERVER_VERSION = "2026-08-24-potentia-v78-openai-schedule-guard";
 const NOTICE_ADMIN_PASSWORD = process.env.NOTICE_ADMIN_PASSWORD || "";
 const NOTICE_FILE = path.join(process.cwd(), "notices-data.json");
 
+require("./uri-sai/mediation.cjs").mountMediation(app);
+
 app.use(cors());
 app.use(express.json({ limit: "35mb" }));
 
